@@ -12,7 +12,7 @@ const API_BASE = 'https://api.unsplash.com';
  * @throws 如果 API 请求失败或响应不成功，则抛出错误
  */
 export async function fetchLatestPhotos(env: Env, page: number = 1, perPage: number = 10): Promise<UnsplashPhoto[]> {
-    const url = `${API_BASE}/photos?page=${page}&per_page=${perPage}&order_by=latest`;
+    const url = `${API_BASE}/photos?page=${page}&per_page=${perPage}&order_by=oldest`;
     console.log(`Workspaceing from Unsplash: ${url}`);
 
     const response = await fetch(url, {
