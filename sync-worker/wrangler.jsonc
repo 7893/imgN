@@ -1,49 +1,37 @@
 {
-  // --- 保留 wrangler init 已生成的字段 ---
-  "name": "imgn-sync-worker", // 确认名称是这个
-  "main": "src/index.ts", // 确认入口文件路径正确
-  "compatibility_date": "2025-04-02", // 确认日期已存在
-  // --- 添加或合并以下绑定和触发器 ---
-  // D1 数据库绑定
+  "name": "imgn-sync-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-02",
   "d1_databases": [
     {
-      "binding": "DB", // 在 Worker 代码中用 env.DB 访问
+      "binding": "DB",
       "database_name": "d1-imgn-20240402",
-      "database_id": "d0937ba7-e1e5-4693-990a-f4b754946dee" // 使用我们记下的 D1 ID
+      "database_id": "d0937ba7-e1e5-4693-990a-f4b754946dee"
     }
   ],
-  // R2 存储桶绑定
   "r2_buckets": [
     {
-      "binding": "IMAGE_BUCKET", // 在 Worker 代码中用 env.IMAGE_BUCKET 访问
+      "binding": "IMAGE_BUCKET",
       "bucket_name": "r2-imgn-20240402"
     }
   ],
-  // KV Namespace 绑定
   "kv_namespaces": [
     {
-      "binding": "KV_CACHE", // 在 Worker 代码中用 env.KV_CACHE 访问 (如果 sync worker 需要的话)
-      "id": "735f5c8008a64addb2b94dd097876ae9" // 使用我们记下的 KV ID
+      "binding": "KV_CACHE",
+      "id": "735f5c8008a64addb2b94dd097876ae9"
     }
   ],
-  // Queue 消费者绑定 (Sync Worker 是消费者)
+  // Queue consumer configuration (uncomment if needed)
   // "queues": {
   //   "consumers": [
   //     {
-  //       "queue": "imgn-queue-sync-tasks-20240402", // 我们创建的 Queue 名称
-  //       // 可以添加其他消费者配置，如 max_batch_size, max_wait_time_ms 等，暂时用默认值
+  //       "queue": "imgn-queue-sync-tasks-20240402"
   //     }
   //   ]
-  // "producers": [] // Sync Worker 通常不生产消息到这个队列，所以 producers 为空或省略
-  //},
-  // Cron 触发器 (用于定时触发同步)
-  "triggers": [
-    {
-      "crons": [
-        "*/2 * * * *"
-      ]
-    }
-  ]
-  // --- 其他 wrangler init 可能生成的配置 (如 assets, vars 等) ---
-  // 如果有 "assets" 配置，保留它
+  // },
+  "triggers": {
+    "crons": [
+      "*/2 * * * *"
+    ]
+  }
 }
