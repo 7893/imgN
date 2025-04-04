@@ -1,55 +1,53 @@
 {
-  "name": "imgn-api-worker",       // Worker 服务名称
-  "main": "src/index.ts",         // 主入口文件
-  "compatibility_date": "2025-04-04", // 你的兼容性日期 (请使用更新的日期)
-
-  // --- 路由配置 (关键修正!) ---
-  // 告诉 Cloudflare 将发往此 URL 模式的请求路由给这个 Worker
-  "routes": [
-    "imgn-api-worker.53.workers.dev/*" 
-    // 这个模式匹配你的 Worker 的 .workers.dev URL 下的所有路径
-    // 如果部署报错说需要 zone_name，可以改成对象格式:
-    // { "pattern": "imgn-api-worker.53.workers.dev/*", "zone_name": "53.workers.dev" }
-  ],
-  // --- 路由配置结束 ---
-
-  // D1 数据库绑定 (如果 API worker 需要直接访问)
+  "name": "imgn-api-worker", // Worker 服务名称
+  "main": "src/index.ts", // 主入口文件
+  "compatibility_date": "2025-04-04", // 你的兼容性日期
+  // --- 添加 workers_dev = true ---
+  // 明确指示部署到 *.workers.dev 子域并使用隐式路由
+  "workers_dev": true,
+  // --- 结束添加 ---
+  // --- 确保 routes 字段不存在 ---
+  // "routes": [ ... ], // <--- 删除或确保没有这一段
+  // --- 其他绑定保持不变 ---
+  // D1 数据库绑定
   "d1_databases": [
     {
-      "binding": "DB", // 代码中用 env.DB
+      "binding": "DB",
       "database_name": "d1-imgn-20240402",
-      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" // 确保这是最新的 ID
+      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78"
     }
   ],
-
-  // KV Namespace 绑定 (例如用于缓存)
+  // KV Namespace 绑定
   "kv_namespaces": [
     {
-      "binding": "KV_CACHE", // 代码中用 env.KV_CACHE
-      "id": "735f5c8008a64addb2b94dd097876ae9" // KV Namespace ID
+      "binding": "KV_CACHE",
+      "id": "735f5c8008a64addb2b94dd097876ae9"
     }
   ],
-
   // Durable Object 绑定
   "durable_objects": {
     "bindings": [
-      { 
-        "name": "SYNC_COORDINATOR_DO", // 代码中用 env.SYNC_COORDINATOR_DO
-        "class_name": "SyncCoordinatorDO" // 对应的 DO 类名
+      {
+        "name": "SYNC_COORDINATOR_DO",
+        "class_name": "SyncCoordinatorDO"
       }
     ]
   },
-  // 声明此 Worker 导出了 DO 类 (用于迁移)
-  "migrations": [ 
-    { "tag": "v1_do_class", "new_classes": ["SyncCoordinatorDO"] } 
-  ], 
-
-  // Queue Producer 绑定 (供 DO 使用，将任务发送到队列)
+  // DO Class 迁移声明
+  "migrations": [
+    {
+      "tag": "v1_do_class",
+      "new_classes": [
+        "SyncCoordinatorDO"
+      ]
+    }
+  ],
+  // Queue Producer 绑定
   "queues": {
     "producers": [
       {
-        "queue": "imgn-queue-sync-tasks-20240402", // 目标队列名称
-        "binding": "SYNC_TASK_QUEUE" // DO 代码中用 this.env.SYNC_TASK_QUEUE
+        "queue": "imgn-queue-sync-tasks-20240402",
+        "binding": "SYNC_TASK_QUEUE"
       }
     ]
   }
