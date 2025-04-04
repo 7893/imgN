@@ -1,52 +1,56 @@
 {
-	// 基本配置 (请确认与你 wrangler init 生成的一致或按需修改)
-	"name": "imgn-api-worker", // Worker 服务名称
-	"main": "src/index.ts", // 入口文件
-	"compatibility_date": "2025-04-04", // 建议使用当前日期或更新的日期
-	// D1 数据库绑定 (用于 API 可能需要直接读写数据, 或由 DO 访问)
-	"d1_databases": [
-		{
-			"binding": "DB", // 代码中用 env.DB 访问
-			"database_name": "d1-imgn-20240402",
-			"database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" // 新的数据库 ID
-		}
-	],
-	// (可选) KV Namespace 绑定 (例如用于 API 缓存)
-	"kv_namespaces": [
-		{
-			"binding": "KV_CACHE", // 代码中用 env.KV_CACHE 访问
-			"id": "735f5c8008a64addb2b94dd097876ae9" // KV Namespace ID
-		}
-	],
-	// === 新增/关键配置 ===
-	// Durable Object 绑定
-	"durable_objects": {
-		"bindings": [
-			{
-				"name": "SYNC_COORDINATOR_DO", // 在代码中用 env.SYNC_COORDINATOR_DO 访问 Namespace
-				"class_name": "SyncCoordinatorDO" // 需要与 src/ 目录下导出的 DO 类名完全一致
-				// script_name: "imgn-api-worker" // 可选，如果 DO 类在此 Worker 中定义，通常可省略
-			}
-		]
-	},
-	// 声明此 Worker 导出了新的 Durable Object 类
-	"migrations": [
-		{
-			"tag": "v1_do_class",
-			"new_classes": [
-				"SyncCoordinatorDO"
-			]
-		}
-		// tag 可以自定义，用于迁移追踪
-	],
-	// Queue Producer 绑定 (用于 DO 向队列发送任务)
-	"queues": {
-		"producers": [
-			{
-				"queue": "imgn-queue-sync-tasks-20240402", // 目标队列名称
-				"binding": "SYNC_TASK_QUEUE" // 在 DO 代码中用 this.env.SYNC_TASK_QUEUE 访问
-			}
-		]
-		// consumers: [] // api-worker 通常不消费这个队列
-	}
+  "name": "imgn-api-worker",       // Worker 服务名称
+  "main": "src/index.ts",         // 主入口文件
+  "compatibility_date": "2025-04-04", // 你的兼容性日期 (请使用更新的日期)
+
+  // --- 路由配置 (关键修正!) ---
+  // 告诉 Cloudflare 将发往此 URL 模式的请求路由给这个 Worker
+  "routes": [
+    "imgn-api-worker.53.workers.dev/*" 
+    // 这个模式匹配你的 Worker 的 .workers.dev URL 下的所有路径
+    // 如果部署报错说需要 zone_name，可以改成对象格式:
+    // { "pattern": "imgn-api-worker.53.workers.dev/*", "zone_name": "53.workers.dev" }
+  ],
+  // --- 路由配置结束 ---
+
+  // D1 数据库绑定 (如果 API worker 需要直接访问)
+  "d1_databases": [
+    {
+      "binding": "DB", // 代码中用 env.DB
+      "database_name": "d1-imgn-20240402",
+      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" // 确保这是最新的 ID
+    }
+  ],
+
+  // KV Namespace 绑定 (例如用于缓存)
+  "kv_namespaces": [
+    {
+      "binding": "KV_CACHE", // 代码中用 env.KV_CACHE
+      "id": "735f5c8008a64addb2b94dd097876ae9" // KV Namespace ID
+    }
+  ],
+
+  // Durable Object 绑定
+  "durable_objects": {
+    "bindings": [
+      { 
+        "name": "SYNC_COORDINATOR_DO", // 代码中用 env.SYNC_COORDINATOR_DO
+        "class_name": "SyncCoordinatorDO" // 对应的 DO 类名
+      }
+    ]
+  },
+  // 声明此 Worker 导出了 DO 类 (用于迁移)
+  "migrations": [ 
+    { "tag": "v1_do_class", "new_classes": ["SyncCoordinatorDO"] } 
+  ], 
+
+  // Queue Producer 绑定 (供 DO 使用，将任务发送到队列)
+  "queues": {
+    "producers": [
+      {
+        "queue": "imgn-queue-sync-tasks-20240402", // 目标队列名称
+        "binding": "SYNC_TASK_QUEUE" // DO 代码中用 this.env.SYNC_TASK_QUEUE
+      }
+    ]
+  }
 }
