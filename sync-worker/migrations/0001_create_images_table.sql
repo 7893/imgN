@@ -38,9 +38,3 @@ CREATE TABLE img3_metadata (
     -- 注意: 已移除 synced_at 列，因为它不是来自 API 的原始属性
 );
 
--- === 可选索引 (根据需要调整) ===
-CREATE INDEX IF NOT EXISTS idx_imgmeta_created_at ON images_metadata (created_at_api);
-CREATE INDEX IF NOT EXISTS idx_imgmeta_likes ON images_metadata (likes);
-CREATE INDEX IF NOT EXISTS idx_imgmeta_updated_at ON images_metadata (updated_at_api);
--- 如果你需要按作者查询，但直接索引 JSON 列效率不高，可能需要冗余存储 author_username
--- CREATE INDEX IF NOT EXISTS idx_imgmeta_author ON images_metadata (author_username); -- 假设你添加了 author_username 列
