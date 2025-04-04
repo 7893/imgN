@@ -32,22 +32,22 @@
   ],
 
   // Queue 消费者绑定 (Sync Worker 是消费者)
-  "queues": {
-    "consumers": [
-      {
-        "queue": "imgn-queue-sync-tasks-20240402", // 我们创建的 Queue 名称
-        // 可以添加其他消费者配置，如 max_batch_size, max_wait_time_ms 等，暂时用默认值
-      }
-    ]
+  // "queues": {
+  //   "consumers": [
+  //     {
+  //       "queue": "imgn-queue-sync-tasks-20240402", // 我们创建的 Queue 名称
+  //       // 可以添加其他消费者配置，如 max_batch_size, max_wait_time_ms 等，暂时用默认值
+  //     }
+  //   ]
     // "producers": [] // Sync Worker 通常不生产消息到这个队列，所以 producers 为空或省略
   },
 
   // Cron 触发器 (用于定时触发同步)
-  "triggers": {
-    // "crons": ["*/10 * * * *"] // 示例：每 10 分钟触发一次，根据你的需要调整
-     "crons": ["0 * * * *"] // 示例：每小时的 0 分触发一次
-    // "crons": ["@daily"] // 示例：每天触发一次
-  }
+  // "triggers": {
+  //   // "crons": ["*/10 * * * *"] // 示例：每 10 分钟触发一次，根据你的需要调整
+  //    "crons": ["0 * * * *"] // 示例：每小时的 0 分触发一次
+  //   // "crons": ["@daily"] // 示例：每天触发一次
+  // }
 
   // --- 其他 wrangler init 可能生成的配置 (如 assets, vars 等) ---
   // 如果有 "assets" 配置，保留它
