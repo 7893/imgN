@@ -1,6 +1,5 @@
 // ~/imgN/sync-worker/src/handlers.ts
 import { ExecutionContext, MessageBatch } from '@cloudflare/workers-types';
-// 确保从正确的路径导入类型和辅助函数
 import { Env, UnsplashPhoto, QueueMessagePayload } from './types'; 
 import { fetchLatestPhotos } from './unsplash';
 import { upsertPhotoMetadataBatch } from './database';
@@ -16,10 +15,11 @@ const corsHeadersMap = {
 };
 
 function addCorsHeaders(response: Response): void {
-    // 直接修改传入 Response 的 Headers
-    Object.entries(corsHeadersMap).forEach(([key, value]) => { 
-        response.headers.set(key, value); 
-    });
+    const newHeaders = new Headers(response.headers);
+    Object.entries(corsHeadersMap).forEach(([key, value]) => { newHeaders.set(key, value); });
+	// 需要返回新的 Response 对象才能修改 headers
+	// 或者直接修改传入的 response.headers (如果允许)
+    Object.entries(corsHeadersMap).forEach(([key, value]) => { response.headers.set(key, value); });
 }
 
 function handleOptions(request: Request): Response { 
@@ -61,11 +61,10 @@ export async function handleFetch(request: Request, env: Env, ctx: ExecutionCont
 export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env: Env, ctx: ExecutionContext): Promise<void> {
 	console.log(`[${new Date().toISOString()}] Received queue batch with ${batch.messages.length} messages.`);
 
-	// 依次处理批次中的每条消息
 	for (const message of batch.messages) {
 		const messageId = message.id;
 		let pageToProcess: number | undefined;
-        let processingSuccess = false; // 标记此消息是否成功处理
+        let processingSuccess = false; 
         let errorMessageForReport: string | null = null;
 
 		console.log(`Processing message ID: ${messageId}`);
@@ -130,33 +129,28 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
                              r2FailCount++;
 						}
 					});
-					// 等待当前小批次完成
 					await Promise.allSettled(batchPromises); 
                     console.log(`  R2 upload sub-batch ${Math.floor(i / r2BatchSize) + 1} settled.`);
 				} // end for loop for R2 batches
                  console.log(`R2 upload attempts for page ${pageToProcess} finished. Failures recorded: ${r2FailCount}`);
-                 // 即使 R2 有失败，也认为页面处理尝试完成，但在报告时可能带上错误信息
                  if (r2FailCount === 0) {
                      processingSuccess = true; 
                  } else {
-                     processingSuccess = false; // 标记为处理中存在错误
+                     processingSuccess = false; 
                      errorMessageForReport = `Page ${pageToProcess} processed with ${r2FailCount} R2 upload failures.`;
                  }
 			} // end else (photos found)
 
-            // 如果整个 try 块没有抛出错误，并且 R2 处理也标记为成功，则确认消息
+            // 确认消息 (如果处理成功)
             if (processingSuccess) {
                 message.ack();
                 console.log(`Message ID ${messageId} (Page ${pageToProcess}) acknowledged.`);
             } else {
-                 // 如果 R2 有失败，或者 try 块捕获了其他错误导致 processingSuccess 为 false
-                 // 这里我们选择 ack 掉消息并报告错误，而不是重试。
                  console.warn(`Processing for page ${pageToProcess} completed with errors. Acknowledging message.`);
                  message.ack(); 
             }
 
 		} catch (error: any) {
-			// 处理整个页面处理过程中的捕获到的错误 (例如 D1 错误)
 			console.error(`Failed to process message ID ${messageId} (Page ${pageToProcess}):`, error);
             errorMessageForReport = error.message || "Unknown error during queue processing";
             console.error(`Acknowledging failed message ID ${messageId} to prevent retry loop.`);
@@ -165,23 +159,25 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
             // --- 4. 回调 API Worker 报告本页处理结果 ---
             if (pageToProcess !== undefined) {
                 console.log(`Reporting status for page ${pageToProcess} back to API worker...`);
-                // 构造回调载荷
                 const reportPayload = processingSuccess 
                     ? { pageCompleted: pageToProcess } 
                     : { error: `Failed to fully process page ${pageToProcess}: ${errorMessageForReport ?? 'Unknown error or R2 failures'}` };
-                
-                // 从 Secret 获取 API Worker URL
-                const apiWorkerUrl = env.API_WORKER_URL_SECRET; 
+                    
+                const apiWorkerUrl = env.API_WORKER_URL_SECRET; // 从 Secret 获取 URL
                 if (!apiWorkerUrl) {
-                     console.error("API_WORKER_URL_SECRET is not configured! Cannot report back.");
+                     console.error("FATAL: API_WORKER_URL_SECRET is not configured! Cannot report back to DO.");
                 } else {
                     const reportUrl = `${apiWorkerUrl}/report-sync-page`; 
                     
-                    // *** 新增的调试日志 ***
-                    console.log(`DEBUG: Attempting callback fetch to URL: [${reportUrl}]`); 
+                    // *** 新增的调试日志：打印 Secret 值 (部分遮蔽) ***
+                    const obscuredSecret = env.API_WORKER_URL_SECRET 
+                        ? `${env.API_WORKER_URL_SECRET.substring(0, 8)}...${env.API_WORKER_URL_SECRET.slice(-5)}` 
+                        : 'SECRET_NOT_SET_OR_EMPTY';
+                    console.log(`DEBUG: Value of env.API_WORKER_URL_SECRET appears as: [${obscuredSecret}]`);
                     // *** 调试日志结束 ***
                     
-                    // 使用 ctx.waitUntil 确保回调请求能发出
+                    console.log(`DEBUG: Attempting callback fetch to URL: [${reportUrl}]`); 
+                    
                     ctx.waitUntil(
                         fetch(reportUrl, {
                             method: 'POST',
@@ -190,6 +186,7 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
                         })
                         .then(async (res) => {
                             if (!res.ok) {
+                                // 如果回调失败，也在这里打印明确的错误
                                 console.error(`[Callback Error] Failed to report page ${pageToProcess} status to API worker: ${res.status} ${res.statusText}`, await res.text());
                             } else {
                                 console.log(`[Callback Success] Successfully reported page ${pageToProcess} status to API worker.`);
