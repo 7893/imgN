@@ -1,0 +1,45 @@
+# .gitignore (根目录)
+
+# Dependencies
+node_modules/
+
+# Wrangler specific files (covers .wrangler in root and subdirs)
+.wrangler/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build output
+dist/
+build/
+out/
+.output/
+.vercel/
+
+# Local environment variables
+.env
+.env.*
+!.env.example
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor directories and files
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Test results & coverage
+coverage/
+.nyc_output/
