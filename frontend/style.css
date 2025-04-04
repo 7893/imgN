@@ -4,6 +4,8 @@ body {
 	margin: 0;
 	padding: 20px;
 	background-color: #f4f7f6;
+	color: #333;
+	/* 默认文字颜色 */
 }
 
 h1 {
@@ -11,61 +13,173 @@ h1 {
 	color: #333;
 }
 
+/* --- 控制区域样式 --- */
+.controls {
+	text-align: center;
+	margin-bottom: 15px;
+	padding: 15px;
+	/* 增加内边距 */
+	background-color: #e9ecef;
+	/* 淡灰色背景 */
+	border: 1px solid #ced4da;
+	/* 边框 */
+	border-radius: 8px;
+	/* 圆角 */
+	display: flex;
+	/* 使用 Flexbox 布局 */
+	justify-content: center;
+	/* 水平居中 */
+	align-items: center;
+	/* 垂直居中 */
+	flex-wrap: wrap;
+	/* 允许换行 */
+	gap: 15px;
+	/* 元素间距 */
+}
+
+.controls button {
+	padding: 10px 18px;
+	/* 按钮内边距 */
+	font-size: 1em;
+	/* 字体大小 */
+	cursor: pointer;
+	border: 1px solid #adb5bd;
+	/* 边框 */
+	border-radius: 5px;
+	/* 圆角 */
+	background-color: #007bff;
+	/* 蓝色背景 */
+	color: white;
+	/* 白色文字 */
+	transition: background-color 0.2s ease;
+	/* 过渡效果 */
+}
+
+.controls button#stopButton {
+	background-color: #dc3545;
+	/* 停止按钮用红色 */
+	border-color: #dc3545;
+}
+
+.controls button:hover {
+	opacity: 0.9;
+	/* 悬停时改变透明度 */
+}
+
+.controls button:disabled {
+	background-color: #6c757d;
+	/* 禁用时灰色 */
+	border-color: #6c757d;
+	cursor: not-allowed;
+	opacity: 0.65;
+}
+
+#statusDisplay {
+	/* margin-left: 15px; */
+	/* Flex 布局下用 gap 控制间距 */
+	font-weight: bold;
+	color: #495057;
+	/* 深灰色 */
+	background-color: #fff;
+	/* 白色背景 */
+	padding: 5px 10px;
+	/* 内边距 */
+	border-radius: 4px;
+	/* 圆角 */
+	border: 1px solid #ced4da;
+	/* 边框 */
+}
+
+.action-message {
+	text-align: center;
+	min-height: 1.2em;
+	margin-bottom: 15px;
+	font-style: italic;
+	color: #28a745;
+	/* 默认成功用绿色 */
+	font-weight: bold;
+}
+
+.action-message.error {
+	color: #dc3545;
+	/* 失败用红色 */
+}
+
+/* --- 控制区域样式结束 --- */
+
+hr {
+	margin: 25px 0;
+	border: 0;
+	border-top: 1px solid #ccc;
+}
+
+/* --- 图片网格样式 (保持不变) --- */
 #image-grid {
 	display: grid;
-	/* 创建一个响应式的网格布局 */
-	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
-	gap: 20px; /* 网格间距 */
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	gap: 20px;
 	padding: 20px 0;
 }
 
 .image-card {
 	border: 1px solid #ddd;
 	border-radius: 8px;
-	overflow: hidden; /* 确保图片圆角生效 */
+	overflow: hidden;
 	background-color: #fff;
-	box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 	transition: transform 0.2s ease-in-out;
+	display: flex;
+	/* 使用 Flex 布局使内容垂直 */
+	flex-direction: column;
 }
 
 .image-card:hover {
-    transform: translateY(-5px); /* 鼠标悬停时轻微上移 */
+	transform: translateY(-5px);
 }
 
 .image-card img {
 	display: block;
 	width: 100%;
-	height: 200px; /* 固定图片高度 */
-	object-fit: cover; /* 保持图片比例，裁剪多余部分 */
+	height: 200px;
+	object-fit: cover;
 }
 
 .image-card .image-info {
 	padding: 10px 15px;
+	flex-grow: 1;
+	/* 让信息区域填满剩余空间 */
+	display: flex;
+	flex-direction: column;
 }
 
 .image-card .description {
 	font-size: 0.9em;
 	color: #555;
 	margin-bottom: 8px;
-    /* 限制描述显示行数 (可选) */
-    display: -webkit-box;
-    -webkit-line-clamp: 2; 
-    -webkit-box-orient: vertical;  
-    overflow: hidden;
-    text-overflow: ellipsis;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-grow: 1;
+	/* 让描述填满 */
 }
 
 .image-card .author {
 	font-size: 0.8em;
 	color: #777;
 	margin-bottom: 4px;
+	margin-top: auto;
+	/* 把作者信息推到底部 */
 }
+
 .image-card .author a {
-    color: #007bff;
-    text-decoration: none;
+	color: #007bff;
+	text-decoration: none;
 }
+
 .image-card .author a:hover {
-    text-decoration: underline;
+	text-decoration: underline;
 }
 
 .image-card .likes {

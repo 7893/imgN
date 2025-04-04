@@ -1,17 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>imgN Image Gallery</title>
+    <title>imgN 控制面板 & 图库</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>imgN Image Gallery</h1>
-    <div id="image-grid">
+    <h1>imgN 控制面板 & 图库</h1>
+
+    <div class="controls">
+        <button id="startButton">开始同步</button> <button id="stopButton">停止同步</button> <span id="statusDisplay">状态:
+            正在检查...</span>
     </div>
+    <div id="actionMessage" class="action-message"></div>
+    <hr>
+
+    <div id="image-grid">
+        <p>正在加载图片...</p>
+    </div>
+
     <script src="script.js"></script>
 </body>
 
