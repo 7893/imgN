@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # 脚本：清空指定 D1 数据库中所有用户表的数据 (保留表结构)
-# 警告：此操作将删除目标数据库内所有用户自定义表中的所有行！请谨慎使用！
+# 新版：简化确认流程，列出表后按 Enter 或 y/Y 确认
 
 # --- 配置 ---
-DATABASE_NAME="d1-imgn-20240402" # 需要清空数据的 D1 数据库名称
+DATABASE_NAME="d1-imgn-20240402" # 要清空数据的 D1 数据库名称
 
 echo "本脚本将尝试清空数据库 '$DATABASE_NAME' 中所有用户表的数据。"
 echo "表结构本身将被保留。"
@@ -13,75 +13,73 @@ echo "--------------------------------------------------"
 
 # --- 检查依赖工具 ---
 if ! command -v wrangler &> /dev/null; then
-    echo "错误：未找到 'wrangler' 命令。请先安装 Wrangler CLI。" >&2
-    exit 1
+    echo "错误：未找到 'wrangler' 命令。" >&2; exit 1;
 fi
 if ! command -v jq &> /dev/null; then
-    echo "错误：未找到 'jq' 命令。请安装 (例如: sudo apt install jq)。" >&2
-    exit 1
+    echo "错误：未找到 'jq' 命令。请安装 (例如: sudo apt install jq)。" >&2; exit 1;
 fi
-
-# --- 确认 Cloudflare 凭证已配置 (可选但推荐) ---
 if [[ -z "$CLOUDFLARE_ACCOUNT_ID" && -z "$TF_VAR_cloudflare_account_id" ]]; then
-    echo "警告：未检测到 Cloudflare Account ID 环境变量。请确保已配置，否则后续命令可能失败。" >&2
+    echo "警告：未检测到 Cloudflare Account ID 环境变量。请确保已配置。" >&2
 fi
 
-# --- **极其重要**的用户确认 ---
-# 要求用户输入数据库名称以确认，增加安全性
-read -p "为防止误操作，请输入要清空数据的数据库名称 ('$DATABASE_NAME'): " confirm_db_name
-if [[ "$confirm_db_name" != "$DATABASE_NAME" ]]; then
-    echo "输入的数据库名称不匹配，操作已取消。"
-    exit 1
-fi
+echo "正在获取 '$DATABASE_NAME' 中的用户表列表..."
 
-read -p "请再次确认删除 '$DATABASE_NAME' 中所有用户表的数据? (输入 'yes' 继续执行): " confirm_action
-if [[ "${confirm_action,,}" != "yes" ]]; then # 转换为小写并检查
-    echo "操作已取消。"
-    exit 0
-fi
-
-echo "---"
-echo "正在获取数据库 '$DATABASE_NAME' 中的用户表列表..."
-
-# --- 获取用户表列表 ---
-# 使用 --json 参数获取易于解析的输出，然后用 jq 提取表名
-# 排除 sqlite_* (SQLite内部表), _cf_* (Cloudflare内部表), d1_migrations (Wrangler迁移表)
+# --- 获取表列表 ---
+# 使用 --json 获取易于解析的输出, jq 提取 name
+# 排除 sqlite_*, _cf_*, d1_migrations 等内部/管理表
 mapfile -t TABLE_LIST < <(wrangler d1 execute "$DATABASE_NAME" --remote --json --command="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations';" | jq -r '.[].results[]? | .name')
 
-# 检查是否成功获取到列表或是否有表
-# (注意：如果命令本身失败，wrangler会返回非零退出码，脚本可能在此之前就因 set -e 等设置而退出)
+# 检查获取表列表是否成功
 if [ $? -ne 0 ]; then
     echo "错误：获取表列表失败，请检查 wrangler 命令输出或网络连接。" >&2
     exit 1
 fi
 
+# 检查是否有用户表
 if [ ${#TABLE_LIST[@]} -eq 0 ]; then
-    echo "在数据库 '$DATABASE_NAME' 中未找到需要清空的用户表。"
+    echo "在数据库 '$DATABASE_NAME' 中未找到用户表，无需清空。"
     exit 0
 fi
 
-echo "将要清空以下表的数据: ${TABLE_LIST[*]}"
+echo -e "将要清空以下 \e[1;33m${#TABLE_LIST[@]}\e[0m 个表的数据:" # 用黄色显示数量
+# 打印将要清空的表名
+printf "  - %s\n" "${TABLE_LIST[@]}"
+echo "--------------------------------------------------"
+
+# --- 用户确认 (简化版) ---
+# 直接提示用户确认，接受回车或 y/Y
+read -p $'!!! 此操作不可逆 !!!\n按 \e[1;32mEnter\e[0m 或输入 \e[1;32my/Y\e[0m 确认清空以上所有表的数据，输入其他任意字符取消: ' confirm_action
+
+# 检查确认输入：如果输入了内容，并且不是 'y' 或 'Y' (忽略大小写)，则取消
+confirm_action_lower=${confirm_action,,} # 转换为小写
+if [[ -n "$confirm_action" && "$confirm_action_lower" != "y" ]]; then
+    echo "操作已取消。"
+    exit 0
+fi
+# 如果用户直接按 Enter (输入为空) 或输入了 y/Y，则继续执行
+
 echo "--- 开始清空 ---"
 
-# --- 循环执行 DELETE FROM 语句 ---
+# --- 循环清空表 ---
 FAIL_COUNT=0
 SUCCESS_COUNT=0
 for table_name in "${TABLE_LIST[@]}"; do
     echo "正在清空表 '$table_name'..."
-    # 使用双引号确保表名正确处理特殊字符 (虽然 SQLite 通常不要求)
+    # 使用双引号确保表名正确处理
     delete_command="DELETE FROM \"$table_name\";"
 
-    # 执行删除命令
+    # 执行删除命令，捕获标准错误输出以便显示
     if output=$(wrangler d1 execute "$DATABASE_NAME" --remote --command="$delete_command" 2>&1); then
         echo "  ✅ 成功清空表 '$table_name'."
         ((SUCCESS_COUNT++))
     else
         echo "  ❌ 错误：清空表 '$table_name' 失败。" >&2
-        echo "     Wrangler 输出: $output" >&2 # 打印错误输出
+        echo "     Wrangler 输出: $output" >&2 # 显示 wrangler 的错误输出
         ((FAIL_COUNT++))
     fi
 done
 
+# --- 总结 ---
 echo "--- 清空操作完成 ---"
 echo "总结：成功清空 ${SUCCESS_COUNT} 个表，失败 ${FAIL_COUNT} 个表。"
 
