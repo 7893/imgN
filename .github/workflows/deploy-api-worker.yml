@@ -1,0 +1,39 @@
+name: Deploy API Worker
+
+on:
+  push:
+    branches:
+      - main # 当推送到 main 分支时触发
+    paths:
+      - 'api-worker/**'             # 仅当 api-worker 目录内容变化时触发
+      - '.github/workflows/deploy-api-worker.yml' # 当此 workflow 文件本身变化时也触发
+
+permissions:
+  contents: read # 需要读取仓库内容的权限
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy API Worker
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # 使用 Node.js 20
+
+      # 安装 api-worker 的依赖 (如果 package-lock.json 存在且已提交，用 npm ci 更优)
+      - name: Install dependencies for api-worker
+        run: cd api-worker && npm ci 
+
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler@^4 # 全局安装 Wrangler
+
+      # 部署 api-worker (使用 GitHub Secrets)
+      - name: Deploy api-worker
+        run: cd api-worker && wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

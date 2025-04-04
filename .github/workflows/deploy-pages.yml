@@ -1,0 +1,39 @@
+name: Deploy Pages Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'              # 仅当 frontend 目录内容变化时触发
+      - '.github/workflows/deploy-pages.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Pages Frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 虽然只是静态文件，但运行 wrangler 需要 Node 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 静态前端通常不需要安装依赖
+
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler@^4
+
+      # 部署 frontend 到 Pages (使用 GitHub Secrets)
+      - name: Deploy frontend to Pages
+        # 确保 Cloudflare Pages 项目名称确实是 'imgn'
+        run: wrangler pages deploy ./frontend --project-name imgn 
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

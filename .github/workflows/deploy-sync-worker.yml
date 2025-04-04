@@ -1,0 +1,39 @@
+name: Deploy Sync Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'sync-worker/**'            # 仅当 sync-worker 目录内容变化时触发
+      - '.github/workflows/deploy-sync-worker.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Sync Worker
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 安装 sync-worker 的依赖
+      - name: Install dependencies for sync-worker
+        run: cd sync-worker && npm ci 
+
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler@^4
+
+      # 部署 sync-worker (使用 GitHub Secrets)
+      - name: Deploy sync-worker
+        run: cd sync-worker && wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
