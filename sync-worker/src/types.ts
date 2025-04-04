@@ -1,28 +1,40 @@
-// sync-worker/src/types.ts
+// ~/imgN/sync-worker/src/types.ts
+import { Fetcher } from '@cloudflare/workers-types'; // 导入 Fetcher (以备将来可能用 Service Binding)
 
 export interface Env {
 	DB: D1Database;
 	IMAGE_BUCKET: R2Bucket;
-	// KV_CACHE?: KVNamespace;
-	
-	// Secrets
-	UNSPLASH_ACCESS_KEY: string;
-    API_WORKER_URL_SECRET: string; // 用于回调 API Worker 的 URL (需要设置为 Secret)
+	UNSPLASH_ACCESS_KEY: string;   // 这个仍然是 Secret
+	// API_WORKER_URL_SECRET: string; // <-- 不再需要这个 Secret
+	API_WORKER_BASE_URL: string;   // <--- 改用这个普通环境变量绑定
+	// API_WORKER?: Fetcher;       // <-- Service Binding (暂不使用)
+	KV_CACHE?: KVNamespace;     // 可选绑定
 }
 
 // 定义队列消息的载荷类型
 export interface QueueMessagePayload {
-    page: number; // 要处理的页码
-    // 可以添加其他需要传递的信息，例如重试次数等
+    page: number; 
 }
 
-// UnsplashPhoto 接口定义 (保持不变)
+// Unsplash API 返回的 Photo 对象的部分结构 (保持不变)
 export interface UnsplashPhoto {
 	id: string;
-	// ... 其他字段 ...
-    tags?: { title?: string; type?: string; }[];
-    urls: { raw: string; regular: string; /* ... */ } | null;
-    user: { /* ... */ } | null;
-    location?: { /* ... */ } | null;
-    exif?: { /* ... */ } | null;
+	description: string | null;
+	alt_description: string | null;
+	color: string | null;
+	blur_hash: string | null;
+	width: number;
+	height: number;
+	created_at: string | null;
+	updated_at: string | null;
+	likes: number | null;
+	views?: number | null; 
+	downloads?: number | null; 
+	slug: string | null;
+	urls: { raw: string; full: string; regular: string; small: string; thumb: string; } | null;
+	links: { self: string; html: string; download: string; download_location: string; } | null;
+	user: { /* ... */ } | null;
+	location?: { /* ... */ } | null;
+	exif?: { /* ... */ } | null;
+	tags?: { title?: string; type?: string; }[];
 }

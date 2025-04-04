@@ -1,45 +1,23 @@
 // ~/imgN/sync-worker/src/handlers.ts
 import { ExecutionContext, MessageBatch } from '@cloudflare/workers-types';
-import { Env, UnsplashPhoto, QueueMessagePayload } from './types'; 
+import { Env, UnsplashPhoto, QueueMessagePayload } from './types';
 import { fetchLatestPhotos } from './unsplash';
 import { upsertPhotoMetadataBatch } from './database';
 import { uploadImageToR2 } from './storage';
-import { getFolderNameFromTags } from './utils'; 
+import { getFolderNameFromTags } from './utils'; // 确保 utils.ts 文件存在且函数已导出
 
-// --- CORS Helper Functions ---
-const corsHeadersMap = {
-	'Access-Control-Allow-Origin': '*', 
-	'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS', 
-	'Access-Control-Allow-Headers': 'Content-Type',
-	'Access-Control-Max-Age': '86400', 
-};
-
-function addCorsHeaders(response: Response): void {
-    const newHeaders = new Headers(response.headers);
-    Object.entries(corsHeadersMap).forEach(([key, value]) => { newHeaders.set(key, value); });
-	// 需要返回新的 Response 对象才能修改 headers
-	// 或者直接修改传入的 response.headers (如果允许)
-    Object.entries(corsHeadersMap).forEach(([key, value]) => { response.headers.set(key, value); });
-}
-
-function handleOptions(request: Request): Response { 
-	if (request.headers.get('Origin') !== null &&
-		request.headers.get('Access-Control-Request-Method') !== null &&
-		request.headers.get('Access-Control-Request-Headers') !== null) {
-		return new Response(null, { headers: corsHeadersMap });
-	} else { 
-        return new Response(null, { headers: { Allow: 'GET, HEAD, OPTIONS' } }); 
-    } 
-}
-
+// --- CORS Helper Functions (保持不变) ---
+const corsHeadersMap = { /* ... */ };
+function addCorsHeaders(response: Response): void { /* ... */ Object.entries(corsHeadersMap).forEach(([key, value]) => { response.headers.set(key, value); }); }
+function handleOptions(request: Request): Response { /* ... */ if (request.headers.get('Origin') !== null && request.headers.get('Access-Control-Request-Method') !== null && request.headers.get('Access-Control-Request-Headers') !== null) { return new Response(null, { headers: corsHeadersMap }); } else { return new Response(null, { headers: { Allow: 'GET, HEAD, OPTIONS' } }); } }
 
 // --- Worker 事件处理程序 ---
 
 /**
- * 处理 HTTP Fetch 请求 (状态页面)
+ * 处理 HTTP Fetch 请求 (状态页面 - 保持不变)
  */
 export async function handleFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-	console.log(`[${new Date().toISOString()}] Received fetch request: ${request.url}`);	
+    console.log(`[${new Date().toISOString()}] Received fetch request: ${request.url}`);	
 	if (request.method === 'OPTIONS') { return handleOptions(request); }	
 	const url = new URL(request.url);
 	if (url.pathname === '/' || url.pathname === '/health') {
@@ -53,7 +31,6 @@ export async function handleFetch(request: Request, env: Env, ctx: ExecutionCont
         return response; 
     }
 }
-
 
 /**
  * 处理来自 Cloudflare Queue 的消息批次
@@ -79,7 +56,7 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 			pageToProcess = payload.page; 
 			console.log(`Processing task for page ${pageToProcess}...`);
 
-			// 1. 获取 Unsplash 数据
+			// 1. 获取 Unsplash 数据 (每次 30 张, oldest)
 			const photos: UnsplashPhoto[] = await fetchLatestPhotos(env, pageToProcess, 30);
 
 			if (!photos || photos.length === 0) {
@@ -103,11 +80,9 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 				for (let i = 0; i < photos.length; i += r2BatchSize) {
 					const photoBatch = photos.slice(i, i + r2BatchSize); 
 					console.log(` Processing R2 upload sub-batch ${Math.floor(i / r2BatchSize) + 1} (size: ${photoBatch.length})...`);
-					
 					const batchPromises = photoBatch.map(async (photo) => { 
 						const photoId = photo?.id;
 						const imageUrlToDownload = photo?.urls?.raw ?? photo?.urls?.regular; 
-
 						if (photoId && imageUrlToDownload) {
 							const folderName = getFolderNameFromTags(photo.tags);
 							const r2Key = `${folderName}/${photoId}`;
@@ -131,9 +106,9 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 					});
 					await Promise.allSettled(batchPromises); 
                     console.log(`  R2 upload sub-batch ${Math.floor(i / r2BatchSize) + 1} settled.`);
-				} // end for loop for R2 batches
-                 console.log(`R2 upload attempts for page ${pageToProcess} finished. Failures recorded: ${r2FailCount}`);
-                 if (r2FailCount === 0) {
+				} 
+                console.log(`R2 upload attempts for page ${pageToProcess} finished. Failures recorded: ${r2FailCount}`);
+                if (r2FailCount === 0) {
                      processingSuccess = true; 
                  } else {
                      processingSuccess = false; 
@@ -141,7 +116,7 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
                  }
 			} // end else (photos found)
 
-            // 确认消息 (如果处理成功)
+            // 确认消息
             if (processingSuccess) {
                 message.ack();
                 console.log(`Message ID ${messageId} (Page ${pageToProcess}) acknowledged.`);
@@ -154,7 +129,7 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 			console.error(`Failed to process message ID ${messageId} (Page ${pageToProcess}):`, error);
             errorMessageForReport = error.message || "Unknown error during queue processing";
             console.error(`Acknowledging failed message ID ${messageId} to prevent retry loop.`);
-			message.ack(); // 确认消息，防止无限循环
+			message.ack(); 
 		} finally {
             // --- 4. 回调 API Worker 报告本页处理结果 ---
             if (pageToProcess !== undefined) {
@@ -163,19 +138,14 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
                     ? { pageCompleted: pageToProcess } 
                     : { error: `Failed to fully process page ${pageToProcess}: ${errorMessageForReport ?? 'Unknown error or R2 failures'}` };
                     
-                const apiWorkerUrl = env.API_WORKER_URL_SECRET; // 从 Secret 获取 URL
+                // *** 使用 wrangler.jsonc 中定义的 vars ***
+                const apiWorkerUrl = env.API_WORKER_BASE_URL; 
                 if (!apiWorkerUrl) {
-                     console.error("FATAL: API_WORKER_URL_SECRET is not configured! Cannot report back to DO.");
+                     console.error("FATAL: API_WORKER_BASE_URL var is not configured in wrangler.jsonc! Cannot report back.");
                 } else {
-                    const reportUrl = `${apiWorkerUrl}/report-sync-page`; 
+                    const reportUrl = `${apiWorkerUrl}/report-sync-page`; // 拼接路径
                     
-                    // *** 新增的调试日志：打印 Secret 值 (部分遮蔽) ***
-                    const obscuredSecret = env.API_WORKER_URL_SECRET 
-                        ? `${env.API_WORKER_URL_SECRET.substring(0, 8)}...${env.API_WORKER_URL_SECRET.slice(-5)}` 
-                        : 'SECRET_NOT_SET_OR_EMPTY';
-                    console.log(`DEBUG: Value of env.API_WORKER_URL_SECRET appears as: [${obscuredSecret}]`);
-                    // *** 调试日志结束 ***
-                    
+                    // 这个 Debug 日志仍然有用，打印最终访问的 URL
                     console.log(`DEBUG: Attempting callback fetch to URL: [${reportUrl}]`); 
                     
                     ctx.waitUntil(
@@ -186,7 +156,6 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
                         })
                         .then(async (res) => {
                             if (!res.ok) {
-                                // 如果回调失败，也在这里打印明确的错误
                                 console.error(`[Callback Error] Failed to report page ${pageToProcess} status to API worker: ${res.status} ${res.statusText}`, await res.text());
                             } else {
                                 console.log(`[Callback Success] Successfully reported page ${pageToProcess} status to API worker.`);

@@ -1,17 +1,22 @@
 {
-  "name": "imgn-sync-worker",       // Worker 服务名称
-  "main": "src/index.ts",         // 主入口文件
-  "compatibility_date": "2025-04-04", // 你的兼容性日期 (请确认或更新)
+  "name": "imgn-sync-worker",       
+  "main": "src/index.ts",         
+  "compatibility_date": "2025-04-04", // 你的兼容性日期
 
-  // --- 新增 Observability 设置 ---
+  // Observability 设置
   "observability": {
-    "enabled": true, // 明确启用日志/追踪增强功能
-    "head_sampling_rate": 1 // 捕获所有 Trace Events (调试阶段推荐)
+    "enabled": true, 
+    "head_sampling_rate": 1 
   },
-  // --- Observability 设置结束 ---
+
+  // --- 新增：普通环境变量 ---
+  "vars": {
+    // 用于 sync-worker 回调 api-worker 的基础 URL
+    "API_WORKER_BASE_URL": "https://imgn-api-worker.53.workers.dev" 
+  },
+  // --- vars 结束 ---
 
   // --- 绑定 ---
-  // D1 数据库绑定
   "d1_databases": [
     {
       "binding": "DB", 
@@ -19,39 +24,33 @@
       "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" 
     }
   ],
-  // R2 存储桶绑定
   "r2_buckets": [
     {
       "binding": "IMAGE_BUCKET", 
       "bucket_name": "r2-imgn-20240402"
     }
   ],
-  // KV Namespace 绑定 (如果 sync-worker 需要)
   "kv_namespaces": [
     {
-      "binding": "KV_CACHE", 
+      "binding": "KV_CACHE", // 可选绑定
       "id": "735f5c8008a64addb2b94dd097876ae9" 
     }
   ],
-  // Queue Consumer 绑定
   "queues": {
-    "consumers": [
+    "consumers": [ // 作为队列消费者
       {
         "queue": "imgn-queue-sync-tasks-20240402"
-        // 可以按需添加消费者配置参数
         // "max_batch_size": 5,          
         // "max_wait_time_ms": 5000,     
         // "max_concurrency": 10         
       }
     ]
-    // producers: [] // sync-worker 通常不生产消息到此队列
+    // producers: [] 
   }
   // --- 绑定结束 ---
 
-  // --- 确保 triggers 部分不存在或为空 ---
+  // --- 确保没有 triggers 字段，或为空对象 ---
   // "triggers": {}, 
   
-  // --- 注意：这里没有包含 services 绑定 ---
-  // 如果我们后续决定使用 Service Binding 解决回调问题，需要在这里添加 "services" 部分。
-  // 目前假设我们还在尝试修复基于 URL 回调的问题。
+  // --- 注意：这里没有包含 services 绑定 (因为我们优先尝试修复 URL 回调) ---
 }
