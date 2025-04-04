@@ -56,10 +56,10 @@ export default {
 				return;
 			}
 
-			// --- 2. 准备 D1 Upsert SQL 语句 (适配新的 images_metadata 表结构) ---
+			// --- 2. 准备 D1 Upsert SQL 语句 (适配新的 img3_metadata 表结构) ---
 			// 注意: INSERT 和 DO UPDATE SET 子句中不再包含 synced_at
 			const stmt = env.DB.prepare(
-				`INSERT INTO images_metadata (
+				`INSERT INTO img3_metadata (
 					id, description, alt_description, color, blur_hash, width, height, 
 					created_at_api, updated_at_api, likes, views, downloads, 
 					image_urls, photo_links, author_details, location_details, exif_data, tags_data, slug
