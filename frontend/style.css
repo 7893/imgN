@@ -1,7 +1,74 @@
+/* style.css */
 body {
-    font-family: sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	margin: 0;
+	padding: 20px;
+	background-color: #f4f7f6;
 }
+
 h1 {
-    text-align: center;
+	text-align: center;
+	color: #333;
 }
-/* Add more styles later */
+
+#image-grid {
+	display: grid;
+	/* 创建一个响应式的网格布局 */
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
+	gap: 20px; /* 网格间距 */
+	padding: 20px 0;
+}
+
+.image-card {
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	overflow: hidden; /* 确保图片圆角生效 */
+	background-color: #fff;
+	box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+	transition: transform 0.2s ease-in-out;
+}
+
+.image-card:hover {
+    transform: translateY(-5px); /* 鼠标悬停时轻微上移 */
+}
+
+.image-card img {
+	display: block;
+	width: 100%;
+	height: 200px; /* 固定图片高度 */
+	object-fit: cover; /* 保持图片比例，裁剪多余部分 */
+}
+
+.image-card .image-info {
+	padding: 10px 15px;
+}
+
+.image-card .description {
+	font-size: 0.9em;
+	color: #555;
+	margin-bottom: 8px;
+    /* 限制描述显示行数 (可选) */
+    display: -webkit-box;
+    -webkit-line-clamp: 2; 
+    -webkit-box-orient: vertical;  
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.image-card .author {
+	font-size: 0.8em;
+	color: #777;
+	margin-bottom: 4px;
+}
+.image-card .author a {
+    color: #007bff;
+    text-decoration: none;
+}
+.image-card .author a:hover {
+    text-decoration: underline;
+}
+
+.image-card .likes {
+	font-size: 0.8em;
+	color: #777;
+}
