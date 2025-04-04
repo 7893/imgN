@@ -29,7 +29,7 @@
       "binding": "KV_CACHE", // 在 Worker 代码中用 env.KV_CACHE 访问 (如果 sync worker 需要的话)
       "id": "735f5c8008a64addb2b94dd097876ae9" // 使用我们记下的 KV ID
     }
-  ],
+  ]
 
   // Queue 消费者绑定 (Sync Worker 是消费者)
   // "queues": {
@@ -40,7 +40,7 @@
   //     }
   //   ]
     // "producers": [] // Sync Worker 通常不生产消息到这个队列，所以 producers 为空或省略
-  },
+  //},
 
   // Cron 触发器 (用于定时触发同步)
   // "triggers": {
