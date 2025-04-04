@@ -1,44 +1,57 @@
 {
-  // 基本配置 (请确认与你 wrangler init 生成的一致或按需修改)
-  "name": "imgn-sync-worker", // Worker 服务名称
-  "main": "src/index.ts", // 入口文件
-  "compatibility_date": "2025-04-04", // 建议使用当前日期或更新的日期
-  // D1 数据库绑定 (用于写入元数据)
+  "name": "imgn-sync-worker",       // Worker 服务名称
+  "main": "src/index.ts",         // 主入口文件
+  "compatibility_date": "2025-04-04", // 你的兼容性日期 (请确认或更新)
+
+  // --- 新增 Observability 设置 ---
+  "observability": {
+    "enabled": true, // 明确启用日志/追踪增强功能
+    "head_sampling_rate": 1 // 捕获所有 Trace Events (调试阶段推荐)
+  },
+  // --- Observability 设置结束 ---
+
+  // --- 绑定 ---
+  // D1 数据库绑定
   "d1_databases": [
     {
-      "binding": "DB",
+      "binding": "DB", 
       "database_name": "d1-imgn-20240402",
-      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" // 新的数据库 ID
+      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" 
     }
   ],
-  // R2 存储桶绑定 (用于存储图片文件)
+  // R2 存储桶绑定
   "r2_buckets": [
     {
-      "binding": "IMAGE_BUCKET",
+      "binding": "IMAGE_BUCKET", 
       "bucket_name": "r2-imgn-20240402"
     }
   ],
-  // (可选) KV Namespace 绑定 (sync-worker 可能不需要，除非有特定用途)
+  // KV Namespace 绑定 (如果 sync-worker 需要)
   "kv_namespaces": [
     {
-      "binding": "KV_CACHE",
-      "id": "735f5c8008a64addb2b94dd097876ae9"
+      "binding": "KV_CACHE", 
+      "id": "735f5c8008a64addb2b94dd097876ae9" 
     }
   ],
-  // === 修改/关键配置 ===
-  // Queue Consumer 绑定 (用于处理来自队列的任务消息)
+  // Queue Consumer 绑定
   "queues": {
     "consumers": [
       {
-        "queue": "imgn-queue-sync-tasks-20240402", // 消费这个队列的消息
-        // 可以按需添加消费者配置参数:
-        // "max_batch_size": 5,          // 每次调用 queue 函数处理的最大消息数
-        // "max_wait_time_ms": 5000,     // 等待达到 max_batch_size 的最长时间 (毫秒)
-        // "max_concurrency": 10         // 此 Worker 同时处理队列消息的最大并发数 (需要付费计划)
+        "queue": "imgn-queue-sync-tasks-20240402"
+        // 可以按需添加消费者配置参数
+        // "max_batch_size": 5,          
+        // "max_wait_time_ms": 5000,     
+        // "max_concurrency": 10         
       }
     ]
     // producers: [] // sync-worker 通常不生产消息到此队列
   }
+  // --- 绑定结束 ---
+
   // --- 确保 triggers 部分不存在或为空 ---
-  // "triggers": {} 
+  // "triggers": {}, 
+  
+  // --- 注意：这里没有包含 services 绑定 ---
+  // 如果我们后续决定使用 Service Binding 解决回调问题，需要在这里添加 "services" 部分。
+  // 目前假设我们还在尝试修复基于 URL 回调的问题。
 }

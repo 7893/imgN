@@ -1,54 +1,56 @@
 {
-  "name": "imgn-api-worker", // Worker 服务名称
-  "main": "src/index.ts", // 主入口文件
-  "compatibility_date": "2025-04-04", // 你的兼容性日期
-  // --- 添加 workers_dev = true ---
+  "name": "imgn-api-worker",       // Worker 服务名称
+  "main": "src/index.ts",         // 主入口文件
+  "compatibility_date": "2025-04-04", // 你的兼容性日期 (请确认或更新)
+
   // 明确指示部署到 *.workers.dev 子域并使用隐式路由
   "workers_dev": true,
-  // --- 结束添加 ---
-  // --- 确保 routes 字段不存在 ---
-  // "routes": [ ... ], // <--- 删除或确保没有这一段
-  // --- 其他绑定保持不变 ---
+
+  // --- 新增 Observability 设置 ---
+  "observability": {
+    "enabled": true, // 明确启用日志/追踪增强功能
+    "head_sampling_rate": 1 // 捕获所有 Trace Events (调试阶段推荐)
+  },
+  // --- Observability 设置结束 ---
+
+  // --- 绑定 ---
   // D1 数据库绑定
   "d1_databases": [
     {
-      "binding": "DB",
+      "binding": "DB", 
       "database_name": "d1-imgn-20240402",
-      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78"
+      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" 
     }
   ],
   // KV Namespace 绑定
   "kv_namespaces": [
     {
-      "binding": "KV_CACHE",
-      "id": "735f5c8008a64addb2b94dd097876ae9"
+      "binding": "KV_CACHE", 
+      "id": "735f5c8008a64addb2b94dd097876ae9" 
     }
   ],
   // Durable Object 绑定
   "durable_objects": {
     "bindings": [
-      {
-        "name": "SYNC_COORDINATOR_DO",
-        "class_name": "SyncCoordinatorDO"
+      { 
+        "name": "SYNC_COORDINATOR_DO", 
+        "class_name": "SyncCoordinatorDO" 
       }
     ]
   },
   // DO Class 迁移声明
-  "migrations": [
-    {
-      "tag": "v1_do_class",
-      "new_classes": [
-        "SyncCoordinatorDO"
-      ]
-    }
-  ],
+  "migrations": [ 
+    { "tag": "v1_do_class", "new_classes": ["SyncCoordinatorDO"] } 
+  ], 
   // Queue Producer 绑定
   "queues": {
     "producers": [
       {
-        "queue": "imgn-queue-sync-tasks-20240402",
-        "binding": "SYNC_TASK_QUEUE"
+        "queue": "imgn-queue-sync-tasks-20240402", 
+        "binding": "SYNC_TASK_QUEUE" 
       }
     ]
   }
+  // --- 绑定结束 ---
+  // --- 确保没有 routes 字段 ---
 }
