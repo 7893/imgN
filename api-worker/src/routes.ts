@@ -1,4 +1,4 @@
-// ~/imgN/api-worker/src/routes.ts (修正 D1 查询)
+// ~/imgN/api-worker/src/routes.ts (修正 D1 错误日志)
 import { IRequest, StatusError } from 'itty-router';
 import { Env } from './types';
 import { DurableObjectStub, RequestInit, ExecutionContext } from '@cloudflare/workers-types';
@@ -99,47 +99,40 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
         const offset = (pageNum - 1) * limitNum;
 
         const countStmt = env.DB.prepare('SELECT COUNT(*) as total FROM img3_metadata;');
-
-        // --- 修正 SQL 查询 ---
-        // 移除 'resolution' 列，假设使用 'width' 和 'height' 代替 (如果存在)
-        // 请根据你的实际表结构调整这里的列名！
         const dataStmt = env.DB.prepare(`
             SELECT
-                id, created_at_api, updated_at_api, width, height, -- 使用 width, height 代替 resolution
+                id, created_at_api, updated_at_api, width, height,
                 description, alt_description, author_details, photo_links,
                 location_details, tags_data
             FROM img3_metadata
             ORDER BY created_at_api DESC
             LIMIT ?1 OFFSET ?2;
         `).bind(limitNum, offset);
-        // --- 结束 SQL 查询修正 ---
 
         const [countResult, dataResult] = await Promise.all([
             countStmt.first<{ total: number }>(),
             dataStmt.all()
         ]);
 
-        // D1 返回的错误现在会在这里被捕获并抛出
         if (!dataResult.success) {
-            console.error(`D1 Query failed: ${dataResult.error}`, dataResult.cause);
-            // 将 D1 错误信息包装后抛出，以便外层 catch 可以捕获并返回给客户端
+            // --- 修正日志记录 ---
+            // 移除对 dataResult.cause 的访问
+            console.error(`D1 Query failed: ${dataResult.error}`); // Line 124 (修正后)
+            // --- 结束日志记录修正 ---
             throw new Error(dataResult.error ?? "Database query failed");
         }
 
         const totalImages = countResult?.total ?? 0;
         const totalPages = Math.ceil(totalImages / limitNum);
 
-        // --- 修正数据映射 ---
-        // 确保访问的属性与 SELECT 语句中的列名匹配
         const images = (dataResult.results ?? []).map((row: any) => {
             try {
                 return {
                     id: row.id,
                     created_at_api: row.created_at_api,
                     updated_at_api: row.updated_at_api,
-                    width: row.width, // 访问 width
-                    height: row.height, // 访问 height
-                    // resolution: row.resolution, // 移除对 resolution 的访问
+                    width: row.width,
+                    height: row.height,
                     description: row.description,
                     alt_description: row.alt_description,
                     author_details: row.author_details ? JSON.parse(row.author_details) : null,
@@ -149,11 +142,9 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
                 };
             } catch (parseError) {
                 console.warn(`Failed to parse JSON for row ID ${row.id}:`, parseError);
-                return { id: row.id, width: row.width, height: row.height /* include other non-JSON fields */ };
+                return { id: row.id, width: row.width, height: row.height };
             }
         });
-        // --- 结束数据映射修正 ---
-
 
         const responsePayload = {
             success: true,
@@ -174,11 +165,9 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
 
     } catch (error) {
         console.error('[/images Handler] Error:', error);
-        // 将捕获到的错误（包括来自 D1 的错误）格式化返回
         const message = error instanceof StatusError ? error.message : (error instanceof Error ? error.message : "An internal error occurred.");
-        // 如果错误信息包含 D1_ERROR，保持原样，否则使用通用消息
         const finalMessage = message.includes("D1_ERROR:") ? message : "An internal server error occurred while fetching images.";
-        const status = error instanceof StatusError ? error.status : 500; // D1 错误通常是 500
+        const status = error instanceof StatusError ? error.status : 500;
 
         const errorResponse = { success: false, error: finalMessage, data: null };
         return new Response(JSON.stringify(errorResponse), {
