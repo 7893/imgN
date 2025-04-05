@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  vitest: ^3.0.0
+  '@vitest/runner': ^3.0.0
+  '@vitest/snapshot': ^3.0.0
+
 importers:
 
   .:
@@ -58,9 +63,9 @@ packages:
   '@cloudflare/vitest-pool-workers@0.8.11':
     resolution: {integrity: sha512-eAph6dcvGMueu42mioyaJqrRY/gxD+hToBe/0W4LAhaieDSEW7POefPnKsRkOgsNdMBobzRmXg1nD/+7vw/zFw==}
     peerDependencies:
-      '@vitest/runner': 2.0.x - 3.0.x
-      '@vitest/snapshot': 2.0.x - 3.0.x
-      vitest: 2.0.x - 3.0.x
+      '@vitest/runner': ^3.0.0
+      '@vitest/snapshot': ^3.0.0
+      vitest: ^3.0.0
 
   '@cloudflare/workerd-darwin-64@1.20250404.0':
     resolution: {integrity: sha512-+z67wjimn7pZDJI5Ibt2TtNxreFJdFPd5dBMmQqtIfkwrlIsL4PkjHYdiffO7guFP9UygomThuKUaBOU4JA15Q==}

@@ -1,7 +1,17 @@
 {
-	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250405.0",
-		"typescript": "^5.8.3",
-		"wrangler": "^4.7.2"
-	}
+  "name": "imgn-workspace-root",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250405.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.7.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "vitest": "^3.0.0",
+      "@vitest/runner": "^3.0.0",
+      "@vitest/snapshot": "^3.0.0"
+    }
+  }
 }
