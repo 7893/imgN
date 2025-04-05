@@ -39,7 +39,7 @@ jobs:
 
       - name: Deploy sync-worker
         # 使用 pnpm --filter 来指定要执行命令的包
-        run: pnpm --filter imgn-sync-worker deploy 
+        run: pnpm --filter imgn-sync-worker run deploy 
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
