@@ -1,45 +1,55 @@
-name: Deploy Sync Worker
+# 文件路径: .github/workflows/deploy-pages.yml
+
+name: Deploy Pages Frontend
 
 on:
   push:
     branches:
-      - main
+      - main # 仅在推送到 main 分支时触发
     paths:
-      - 'sync-worker/**'            # 监控 sync-worker 目录
-      - '.github/workflows/deploy-sync-worker.yml'
-      - 'pnpm-lock.yaml'            # 监控根锁文件变化
-      - 'package.json'              # 监控根 package.json
-      # - 'packages/**'             # 如果有共享 packages 目录也监控
+      - 'frontend/**'               # 监控 frontend 目录的变化
+      - '.github/workflows/deploy-pages.yml' # 监控此 workflow 文件自身的变化
+      # 因为部署需要用到根目录安装的 wrangler, 所以也监控可能影响它的文件
+      - 'pnpm-lock.yaml'
+      - 'package.json'
 
 permissions:
-  contents: read
+  contents: read # 需要读取仓库内容的权限
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    name: Deploy Sync Worker
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu Runner 环境
+    name: Deploy Pages Frontend
     steps:
+      # 第 1 步：检出代码
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # 使用官方的 checkout action
 
+      # 第 2 步：设置 pnpm 环境
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: latest
-          run_install: false
+          version: latest # 使用最新版本的 pnpm
+          run_install: false # 我们将在下一步手动运行 install
 
+      # 第 3 步：设置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: '20' # 指定 Node.js 版本 (与其它 workflow 保持一致)
+          cache: 'pnpm' # 启用对 pnpm 的缓存
 
-      - name: Install Dependencies (Root + Workspace)
-        run: pnpm install --frozen-lockfile # 在根目录运行一次 install
+      # 第 4 步：安装所有依赖 (包括根目录的 wrangler)
+      # 使用 --prod=false 确保开发依赖 (如 wrangler) 也被安装
+      - name: Install Root Dependencies (including Wrangler)
+        run: pnpm install --frozen-lockfile --prod=false 
 
-      - name: Deploy sync-worker
-        # 使用 pnpm --filter 来指定要执行命令的包
-        run: pnpm --filter imgn-sync-worker run deploy 
+      # 第 5 步：部署 frontend 目录到 Cloudflare Pages
+      - name: Deploy frontend to Cloudflare Pages
+        # 使用 pnpm 执行安装在根目录 node_modules/.bin 下的 wrangler 命令
+        # 确保你的 Cloudflare Pages 项目名称是 'imgn'
+        run: pnpm wrangler pages deploy ./frontend --project-name imgn 
         env:
+          # 从 GitHub Secrets 注入 Cloudflare 凭证
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
