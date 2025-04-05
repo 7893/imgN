@@ -10,7 +10,7 @@ const STATUS_POLL_INTERVAL = 5000; // 状态轮询间隔 (毫秒)
 const IMAGES_PER_PAGE = 30; // 每页图片数量
 
 // *** 重要：请将这里的占位符替换为你真实的 R2 公开访问 URL ***
-const R2_PUBLIC_URL_BASE = 'https://ed3e4f0448b71302675f2b436e5e8dd3.r2.cloudflarestorage.com/r2-imgn-20240402'; // 例如: 'https://pub-xxxxxxxx.r2.dev'
+const R2_PUBLIC_URL_BASE = 'https://pub-61b373cf3f6e4863a70b53ca5e61dc53.r2.dev'; // 例如: 'https://pub-xxxxxxxx.r2.dev'
 
 // --- DOM 元素获取 ---
 const imageGrid = document.getElementById('image-grid');
