@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>imgN 控制面板 & 图库</title>
+    <title>imgN - 图片信息列表</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>imgN 控制面板 & 图库</h1>
+    <h1>imgN - 图片信息列表</h1>
 
     <div class="controls">
         <button id="startButton">开始同步</button>
@@ -26,8 +26,25 @@
         <button id="nextButton" disabled>下一页 &gt;</button>
     </div>
 
-    <div id="image-grid">
-        <p>正在加载图片...</p>
+    <div class="table-container">
+        <table id="image-info-table">
+            <thead>
+                <tr>
+                    <th>图片 ID (链接)</th>
+                    <th>描述 / Alt 描述</th>
+                    <th>分类 (来自 Tag)</th>
+                    <th>分辨率 (宽x高)</th>
+                    <th>拍摄地点</th>
+                    <th>更新时间 (API)</th>
+                    <th>点赞数</th>
+                </tr>
+            </thead>
+            <tbody id="image-table-body">
+                <tr>
+                    <td colspan="7" class="loading-cell">正在加载数据...</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
     <div class="pagination" style="margin-top: 20px;">
         <button id="prevButtonBottom" disabled>&lt; 上一页</button>
