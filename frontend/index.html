@@ -12,14 +12,26 @@
     <h1>imgN 控制面板 & 图库</h1>
 
     <div class="controls">
-        <button id="startButton">开始同步</button> <button id="stopButton">停止同步</button> <span id="statusDisplay">状态:
-            正在检查...</span>
+        <button id="startButton">开始同步</button>
+        <button id="stopButton">停止同步</button>
+        <span id="statusDisplay">状态: 正在检查...</span>
     </div>
     <div id="actionMessage" class="action-message"></div>
+
     <hr>
 
+    <div class="pagination">
+        <button id="prevButton" disabled>&lt; 上一页</button>
+        <span id="pageInfo">Page 1 / ?</span> <button id="nextButton" disabled>下一页 &gt;</button>
+    </div>
     <div id="image-grid">
         <p>正在加载图片...</p>
+    </div>
+
+    <div class="pagination" style="margin-top: 20px;">
+        <button id="prevButtonBottom" disabled>&lt; 上一页</button>
+        <span id="pageInfoBottom">Page 1 / ?</span>
+        <button id="nextButtonBottom" disabled>下一页 &gt;</button>
     </div>
 
     <script src="script.js"></script>
