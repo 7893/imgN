@@ -1,39 +1,32 @@
+// ~/imgN/sync-worker/wrangler.jsonc (最终版 - 使用 Service Binding)
 {
-  "name": "imgn-sync-worker",       
-  "main": "src/index.ts",         
+  "name": "imgn-sync-worker",
+  "main": "src/index.ts",
   "compatibility_date": "2025-04-04", // 你的兼容性日期
-
-  // Observability 设置
   "observability": {
-    "enabled": true, 
-    "head_sampling_rate": 1 
+    "enabled": true,
+    "head_sampling_rate": 1
   },
-
-  // --- 新增：普通环境变量 ---
-  "vars": {
-    // 用于 sync-worker 回调 api-worker 的基础 URL
-    "API_WORKER_BASE_URL": "https://imgn-api-worker.53.workers.dev" 
-  },
-  // --- vars 结束 ---
-
+  // --- 确保没有 vars.API_WORKER_BASE_URL ---
+  // "vars": { ... }, 
   // --- 绑定 ---
   "d1_databases": [
     {
-      "binding": "DB", 
+      "binding": "DB",
       "database_name": "d1-imgn-20240402",
-      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78" 
+      "database_id": "5cb56d07-b760-48de-9254-4bc16f27de78"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "IMAGE_BUCKET", 
+      "binding": "IMAGE_BUCKET",
       "bucket_name": "r2-imgn-20240402"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV_CACHE", // 可选绑定
-      "id": "735f5c8008a64addb2b94dd097876ae9" 
+      "id": "735f5c8008a64addb2b94dd097876ae9"
     }
   ],
   "queues": {
@@ -42,15 +35,18 @@
         "queue": "imgn-queue-sync-tasks-20240402"
         // "max_batch_size": 5,          
         // "max_wait_time_ms": 5000,     
-        // "max_concurrency": 10         
       }
     ]
     // producers: [] 
-  }
-  // --- 绑定结束 ---
-
-  // --- 确保没有 triggers 字段，或为空对象 ---
-  // "triggers": {}, 
-  
-  // --- 注意：这里没有包含 services 绑定 (因为我们优先尝试修复 URL 回调) ---
+  },
+  // --- 新增 Service Binding ---
+  "services": [
+    {
+      "binding": "API_WORKER", // <--- 在代码中用 env.API_WORKER 访问
+      "service": "imgn-api-worker" // <--- 目标 Worker 的服务名称
+      // "environment": "production" // 可选：如果 api-worker 有区分环境
+    }
+  ]
+  // --- Service Binding 结束 ---
+  // --- 确保没有 triggers 字段 ---
 }
