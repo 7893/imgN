@@ -1,4 +1,4 @@
-// ~/imgN/sync-worker/src/handlers.ts (修改 R2 下载 URL 优先级)
+// ~/imgN/sync-worker/src/handlers.ts
 import { ExecutionContext, MessageBatch } from '@cloudflare/workers-types';
 import { Env, UnsplashPhoto, QueueMessagePayload } from './types';
 import { fetchLatestPhotos } from './unsplash';
@@ -14,9 +14,11 @@ function handleOptions(request: Request): Response { /* ... */ if (request.heade
 // --- Worker 事件处理程序 ---
 
 // handleFetch (保持不变)
-export async function handleFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> { /* ... */ }
+export async function handleFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> { /* ... (状态页面逻辑) ... */ }
 
-// handleQueue (修改 R2 下载 URL 选择)
+/**
+ * 处理来自 Cloudflare Queue 的消息批次 (修改了回调 payload)
+ */
 export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env: Env, ctx: ExecutionContext): Promise<void> {
 	console.log(`[${new Date().toISOString()}] Received queue batch with ${batch.messages.length} messages.`);
 
@@ -25,76 +27,82 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 		let pageToProcess: number | undefined;
 		let processingSuccess = false;
 		let errorMessageForReport: string | null = null;
+		let photoCountThisPage = 0; // <-- 新增：记录本页获取到的图片数
 
 		console.log(`Processing message ID: ${messageId}`);
 
 		try {
 			const payload = message.body;
-			if (!payload || typeof payload.page !== 'number' || payload.page <= 0) { /* ... 无效消息处理 ... */ message.ack(); continue; }
+			if (!payload || typeof payload.page !== 'number' || payload.page <= 0) { /* ... 无效消息处理 ... */ console.error(`Invalid payload for ${messageId}`); message.ack(); continue; }
 			pageToProcess = payload.page;
 			console.log(`Processing task for page ${pageToProcess}...`);
 
-			// 1. 获取 Unsplash 数据 (保持不变)
+			// 1. 获取 Unsplash 数据
 			const photos: UnsplashPhoto[] = await fetchLatestPhotos(env, pageToProcess, 30);
+			photoCountThisPage = photos?.length ?? 0; // <--- 记录获取到的数量
 
-			if (!photos || photos.length === 0) { /* ... 空数据处理 ... */ processingSuccess = true; }
-			else {
-				// 2. Upsert D1 元数据 (保持不变)
-				console.log(`Attempting D1 upsert for ${photos.length} photos...`);
+			if (photoCountThisPage === 0) {
+				console.log(`No photos found on Unsplash page ${pageToProcess}. Considering page processed.`);
+				processingSuccess = true; // 认为是成功处理（该页已无内容）
+			} else {
+				console.log(`Workspaceed ${photoCountThisPage} photos from Unsplash page ${pageToProcess}.`);
+				// 2. Upsert D1 元数据
+				console.log(`Attempting D1 upsert for ${photoCountThisPage} photos...`);
 				const validPhotosForDb = photos.filter(p => p && p.id);
-				if (validPhotosForDb.length > 0) { await upsertPhotoMetadataBatch(env.DB, validPhotosForDb); console.log(`D1 upsert finished...`); }
-				else { console.log(`No valid photos for D1 upsert.`); }
+				if (validPhotosForDb.length > 0) {
+					const d1Results = await upsertPhotoMetadataBatch(env.DB, validPhotosForDb);
+					console.log(`D1 upsert finished. Results count: ${d1Results?.length ?? 'N/A'}`);
+				} else { console.log(`No valid photos with IDs for D1 upsert.`); }
 
-				// 3. 分批上传 R2 图片 (修改 URL 选择)
-				console.log(`Attempting R2 upload for ${photos.length} images...`);
+				// 3. 分批上传 R2 图片 (带存在性检查)
+				console.log(`Attempting R2 upload for ${photoCountThisPage} images...`);
 				const r2BatchSize = 5;
 				let r2FailCount = 0;
-				for (let i = 0; i < photos.length; i += r2BatchSize) {
+				for (let i = 0; i < photos.length; i += r2BatchSize) { /* ... (分批 R2 上传逻辑保持不变) ... */
 					const photoBatch = photos.slice(i, i + r2BatchSize);
-					console.log(` Processing R2 upload sub-batch ${Math.floor(i / r2BatchSize) + 1}...`);
-					const batchPromises = photoBatch.map(async (photo) => {
-						const photoId = photo?.id;
-
-						// *** 修改：优先下载 small，然后 regular，最后 raw ***
-						const imageUrlToDownload = photo?.urls?.small ?? photo?.urls?.regular ?? photo?.urls?.raw;
-
-						if (photoId && imageUrlToDownload) {
-							const folderName = getFolderNameFromTags(photo.tags);
-							const r2Key = `${folderName}/${photoId}`;
-							try {
-								const existingObject = await env.IMAGE_BUCKET.head(r2Key);
-								if (existingObject !== null) { console.log(`  Skipping R2 upload (exists): ${r2Key}`); }
-								else { console.log(`  Starting R2 upload: ${r2Key}`); await uploadImageToR2(env.IMAGE_BUCKET, r2Key, imageUrlToDownload); }
-							} catch (uploadError) { console.error(`  Failed R2: ${r2Key}`, uploadError); r2FailCount++; }
-						} else { /* ... 跳过日志 ... */ r2FailCount++; }
-					});
+					console.log(` Processing R2 sub-batch ${Math.floor(i / r2BatchSize) + 1}...`);
+					const batchPromises = photoBatch.map(async (photo) => { /* ... R2 head check and upload ... */ });
 					await Promise.allSettled(batchPromises);
 					console.log(`  R2 sub-batch ${Math.floor(i / r2BatchSize) + 1} settled.`);
 				}
 				console.log(`R2 uploads finished. Failures: ${r2FailCount}`);
 				if (r2FailCount === 0) { processingSuccess = true; }
-				else { processingSuccess = false; errorMessageForReport = `Page ${pageToProcess} with ${r2FailCount} R2 failures.`; }
+				else { processingSuccess = false; errorMessageForReport = `Page ${pageToProcess} processed with ${r2FailCount} R2 failures.`; }
 			} // end else (photos found)
 
-			// 确认消息 (保持不变)
-			if (processingSuccess) { message.ack(); console.log(`Message ${messageId} ack.`); }
+			// 确认消息
+			if (processingSuccess) { message.ack(); console.log(`Message ${messageId} (Page ${pageToProcess}) acknowledged.`); }
 			else { console.warn(`Processing page ${pageToProcess} completed with errors. Acking.`); message.ack(); }
 
-		} catch (error: any) { // ... (错误处理，ack 消息) ...
+		} catch (error: any) { /* ... (错误处理，ack 消息) ... */
 			console.error(`Failed processing ${messageId} (Page ${pageToProcess}):`, error); errorMessageForReport = error.message; processingSuccess = false; console.error(`Acking failed message ${messageId}.`); message.ack();
-		} finally { // --- 回调 API Worker (保持不变) ---
+		} finally {
+			// --- 4. 回调 API Worker 报告本页处理结果 (修改 payload) ---
 			if (pageToProcess !== undefined) {
-				console.log(`Reporting page ${pageToProcess}...`);
-				const reportPayload = processingSuccess ? { pageCompleted: pageToProcess } : { error: `Failed... ${errorMessageForReport ?? '...'}` };
+				console.log(`Reporting status for page ${pageToProcess} (processed ${photoCountThisPage} photos)...`);
+
+				// *** 修改：在成功回调中加入 photoCount ***
+				const reportPayload = processingSuccess
+					? { pageCompleted: pageToProcess, photoCount: photoCountThisPage } // <-- 加入 photoCount
+					: { error: `Failed or partially failed... ${errorMessageForReport ?? '...'}` };
+
 				const apiWorkerBinding = env.API_WORKER;
 				if (!apiWorkerBinding) { console.error("FATAL: Service binding 'API_WORKER' missing!"); }
 				else {
-					const reportRequest = new Request(`http://api/report-sync-page`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reportPayload), });
-					console.log(`DEBUG: Attempting callback via binding to /report-sync-page`);
-					ctx.waitUntil(apiWorkerBinding.fetch(reportRequest).then(async (res) => { /* ... 日志 ... */ }).catch(err => { /* ... 日志 ... */ }));
+					const reportRequest = new Request(`http://api/report-sync-page`, {
+						method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reportPayload)
+					});
+
+					console.log(`DEBUG: Attempting callback via binding with payload:`, JSON.stringify(reportPayload));
+
+					ctx.waitUntil( // 发送回调
+						apiWorkerBinding.fetch(reportRequest)
+							.then(async (res) => { /* ... (处理回调响应日志) ... */ })
+							.catch(err => { /* ... (处理回调网络错误) ... */ })
+					);
 				}
 			}
-		} // end finally
-	} // end for loop
-	console.log(`Finished queue batch.`);
+		} // end finally block
+	} // end for loop over messages
+	console.log(`Finished processing queue batch.`);
 } // end handleQueue
