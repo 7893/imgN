@@ -1,10 +1,7 @@
 // ~/imgN/sync-worker/src/handlers.ts (最终版本)
-import {
-    ExecutionContext,
-    MessageBatch,
-    Request,        // 明确导入类型
-    Response        // 明确导入类型
-} from '@cloudflare/workers-types';
+import { ExecutionContext, MessageBatch } from '@cloudflare/workers-types';
+// Request 和 Response 不需要从这里导入
+
 // 导入类型定义和核心处理逻辑
 import { Env, QueueMessagePayload } from './types';
 import { processSyncPage } from './sync-logic';

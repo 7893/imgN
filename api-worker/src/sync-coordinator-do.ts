@@ -1,11 +1,7 @@
 // ~/imgN/api-worker/src/sync-coordinator-do.ts (v3 - 修正返回值, 移除 memoryState)
-import {
-	DurableObjectState,
-	DurableObjectStorage,
-	Queue,                  // 明确导入 DO 需要的类型
-	Response,
-	Request
-} from '@cloudflare/workers-types';
+
+import { DurableObjectState, DurableObjectStorage, Queue } from '@cloudflare/workers-types';
+// Request 和 Response 使用全局类型
 
 // 定义 Env 类型，仅包含此 DO 运行时真正需要的绑定
 interface Env {

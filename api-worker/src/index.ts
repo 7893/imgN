@@ -1,5 +1,6 @@
 // ~/imgN/api-worker/src/index.ts (修正 DO fetch 调用)
-import { ExecutionContext, DurableObjectStub, RequestInit, Headers, Request } from '@cloudflare/workers-types'; // 显式导入所需类型
+import { ExecutionContext, DurableObjectStub, RequestInit } from '@cloudflare/workers-types';
+// Request, Response, Headers 使用全局类型
 import { SyncCoordinatorDO } from './sync-coordinator-do';
 import { Env } from './types';
 
