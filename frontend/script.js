@@ -76,6 +76,8 @@ function createImageCard(imageData) {
     return card; // <-- 返回 div 卡片
 }
 
+console.log(`[Card for ${photoId}] Tags Data: ${imageData.tags_data}, Folder: ${folderName}, Key: ${r2Key}, Final R2 URL: ${r2ImageUrl}`);
+
 /** *** 修改：加载并显示图片到网格 Div *** */
 async function loadImages(page = 1) {
     if (!imageGrid || isLoadingImages) { // <-- 检查 imageGrid
@@ -96,6 +98,12 @@ async function loadImages(page = 1) {
         if (!response.ok) { throw new Error(`HTTP 错误! 状态: ${response.status}`); }
         const jsonData = await response.json();
         console.log("接收到图片数据:", jsonData);
+
+        console.log("API Response Data:", jsonData); // 打印完整的 API 响应数据
+        const imagesToRender = jsonData.data?.images;
+        if (!imagesToRender) {
+            console.error("Images array is missing in API response data!");
+        }
 
         if (jsonData.success && jsonData.data?.images) {
             imageGrid.innerHTML = ''; // <-- 清空加载提示
