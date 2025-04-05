@@ -1,12 +1,10 @@
-// ~/imgN/sync-worker/src/handlers.ts (再次确认版 - 重点检查 types.ts 文件是否存在)
+// ~/imgN/sync-worker/src/handlers.ts (修正后)
 import { ExecutionContext, MessageBatch, Response } from '@cloudflare/workers-types';
 // Request type is globally available
 
 // 导入类型定义和核心处理逻辑
-// 错误 TS2307 在此行报告: 请确保 './types.ts' 文件存在于 'sync-worker/src/' 目录下，并且文件名大小写正确。
-import { Env } from './types';
-// 使用正确的相对路径导入共享类型
-import { QueueMessagePayload } from '../../api-worker/src/api-types'; // 确认此相对路径正确
+// 修复: Env 和 QueueMessagePayload 都从本地的 types.ts 导入
+import { Env, QueueMessagePayload, SyncPageResult } from './types';
 import { processSyncPage } from './sync-logic';
 
 // --- CORS Helper Functions ---
@@ -29,9 +27,6 @@ function addCorsHeaders(response: Response): Response {
     });
 }
 
-/**
- * 辅助函数：处理 OPTIONS 预检请求
- */
 function handleOptions(request: Request): Response {
     if (
         request.headers.get('Origin') !== null &&
@@ -51,9 +46,6 @@ function handleOptions(request: Request): Response {
 
 // --- Worker 事件处理程序 ---
 
-/**
- * 处理 HTTP Fetch 请求 (状态页面)
- */
 export async function handleFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestUrl = new URL(request.url);
     console.log(`[SyncWorker Fetch] Received: ${request.method} ${requestUrl.pathname}`);
@@ -74,21 +66,18 @@ export async function handleFetch(request: Request, env: Env, ctx: ExecutionCont
     return addCorsHeaders(response);
 }
 
-/**
- * 处理来自 Cloudflare Queue 的消息批次
- */
 export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`[QueueHandler] Received batch with ${batch.messages.length} message(s). Queue: ${batch.queue}`);
 
     const messagePromises = batch.messages.map(async (message) => {
         const messageId = message.id;
         let pageToProcess: number | undefined = undefined;
-        let processingResult: { success: boolean; photoCount: number; error?: string } | null = null;
+        // 修复: 使用导入的 SyncPageResult 类型
+        let processingResult: SyncPageResult | null = null;
 
         console.log(`[QueueHandler] Processing message ID: ${messageId}`);
 
         try {
-            // 1. Validate Payload
             const payload = message.body;
             if (!payload || typeof payload.page !== 'number' || !Number.isInteger(payload.page) || payload.page <= 0) {
                 console.error(`[QueueHandler] Invalid or missing page number in payload for message ${messageId}. Payload:`, JSON.stringify(payload));
@@ -98,19 +87,19 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
             }
             pageToProcess = payload.page;
 
-            // 2. Process the Sync Page Logic
             console.log(`[QueueHandler] Calling processSyncPage for page ${pageToProcess} (Message ID: ${messageId})...`);
 
             if (typeof pageToProcess === 'number') {
+                // processingResult 的类型现在是 SyncPageResult
                 processingResult = await processSyncPage(pageToProcess, env, ctx);
             } else {
                 console.error(`[QueueHandler] Internal Logic Error: pageToProcess (${pageToProcess}) is not a number before calling processSyncPage for message ${messageId}.`);
+                // 确保返回的结构符合 SyncPageResult
                 processingResult = { success: false, photoCount: 0, error: 'Internal logic error: page number became invalid.' };
             }
 
             console.log(`[QueueHandler] processSyncPage result for page ${pageToProcess}:`, processingResult);
 
-            // 3. Acknowledge based on processing attempt
             message.ack();
             console.log(`[QueueHandler] Message ID ${messageId} (Page ${pageToProcess}) acknowledged. Success: ${processingResult.success}`);
             if (!processingResult.success) {
@@ -119,6 +108,7 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 
         } catch (error: any) {
             console.error(`[QueueHandler] UNEXPECTED error processing message ID ${messageId} (Page ${pageToProcess ?? 'unknown'}):`, error);
+            // 确保返回的结构符合 SyncPageResult
             processingResult = {
                 success: false,
                 photoCount: 0,
@@ -127,7 +117,6 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
             message.ack();
             console.error(`[QueueHandler] Message ${messageId} acknowledged after unexpected handler error.`);
         } finally {
-            // 4. Report Status Back to API Worker (via Service Binding)
             if (pageToProcess !== undefined && processingResult !== null) {
                 console.log(`[QueueHandler] Reporting status for page ${pageToProcess} via Service Binding...`);
 
