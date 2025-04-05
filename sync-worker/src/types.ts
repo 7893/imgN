@@ -1,12 +1,12 @@
 // ~/imgN/sync-worker/src/types.ts
-import { Fetcher } from '@cloudflare/workers-types'; // <--- 导入 Fetcher
+import { Fetcher } from '@cloudflare/workers-types';
 
 export interface Env {
 	DB: D1Database;
 	IMAGE_BUCKET: R2Bucket;
 	UNSPLASH_ACCESS_KEY: string;   // Secret
-	API_WORKER: Fetcher;       // <--- 添加 Service Binding 类型
-	KV_CACHE?: KVNamespace;    // 可选绑定
+	API_WORKER: Fetcher;           // Service Binding
+	KV_CACHE?: KVNamespace;        // 可选绑定
 }
 
 // 定义队列消息的载荷类型

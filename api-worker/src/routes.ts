@@ -15,57 +15,44 @@ function getDoStub(env: Env): DurableObjectStub {
     }
 }
 
-// 辅助函数：将请求转发给 DO (使用 RequestInit)
-async function forwardToDo(request: IRequest, env: Env, internalPath: string): Promise<Response> {
-    const doStub = getDoStub(env);
-    const doUrl = new URL(`https://do-internal${internalPath}`);
+/**
+ * 转发请求到 Durable Object
+ */
+async function forwardToDo(env: Env, request: Request, doId: string): Promise<Response> {
+    const doNamespace = env.SYNC_COORDINATOR_DO;
+    const doObject = doNamespace.get(doNamespace.idFromString(doId));
 
-    console.log(`[API Route Handler] 转发 ${request.method} ${request.path} 到 DO 路径 ${internalPath}...`);
-
-    // 构造 RequestInit
-    const doRequestInit: RequestInit = {
+    // 构造 RequestInit 对象
+    const requestInit: RequestInit = {
         method: request.method,
-        headers: request.headers,
+        headers: new Headers(request.headers),
+        body: request.body,
+        // 不复制 cf 属性，因为它可能包含不可序列化的内容
     };
 
-    // 如果有 Body 且是相关方法，克隆并传递
-    if (request.body && ['POST', 'PUT', 'PATCH'].includes(request.method)) {
-        try {
-            if (typeof (request as any).clone === 'function') {
-                doRequestInit.body = (request as any).clone().body;
-            } else {
-                console.warn("Request object doesn't seem to have clone method for body forwarding.");
-                doRequestInit.body = request.body;
-            }
-        } catch (e) {
-            console.error("Error preparing request body for DO:", e);
-            throw new StatusError(400, "Could not process request body for forwarding.");
-        }
-    }
-
-    return doStub.fetch(doUrl.toString(), doRequestInit);
+    return doObject.fetch(request.url, requestInit);
 }
 
 // --- 路由处理函数 ---
 
 export async function handleStartSync(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(request, env, '/start');
+    return forwardToDo(env, request, '/start');
 }
 
 export async function handleStopSync(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(request, env, '/stop');
+    return forwardToDo(env, request, '/stop');
 }
 
 export async function handleStatus(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(request, env, '/status');
+    return forwardToDo(env, request, '/status');
 }
 
 export async function handleReport(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(request, env, '/report');
+    return forwardToDo(env, request, '/report');
 }
 
 export async function handleReset(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(request, env, '/reset');
+    return forwardToDo(env, request, '/reset');
 }
 
 export async function handleHealth(request: IRequest, env: Env): Promise<Response> {
