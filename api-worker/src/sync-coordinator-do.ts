@@ -1,116 +1,118 @@
-// ~/imgN/api-worker/src/sync-coordinator-do.ts (增加了完成检测逻辑)
-import { DurableObjectState, DurableObjectNamespace } from '@cloudflare/workers-types';
+// ~/imgN/api-worker/src/sync-coordinator-do.ts (更新 startSync 实现恢复功能)
+import { DurableObjectState, DurableObjectNamespace, DurableObjectStorage } from '@cloudflare/workers-types';
 
-interface Env { SYNC_TASK_QUEUE: Queue; }
-interface SyncState { /* ... (保持不变) ... */ }
+// Env 接口 (需要 Queue 绑定)
+interface Env {
+	SYNC_TASK_QUEUE: Queue;
+}
+
+// DO 状态类型 (保持不变)
+interface SyncState { /* ... */ }
 
 export class SyncCoordinatorDO implements DurableObject {
 	state: DurableObjectState;
 	env: Env;
 	storage: DurableObjectStorage;
 
-	constructor(state: DurableObjectState, env: Env) { /* ... (保持不变) ... */ }
+	constructor(state: DurableObjectState, env: Env) {
+		this.state = state;
+		this.env = env;
+		this.storage = this.state.storage;
+	}
 
+	// fetch 方法 (路由逻辑保持不变)
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		const doIdShort = this.state.id.toString().substring(0, 6);
 		console.log(`[DO ${doIdShort}] Request: ${request.method} ${path}`);
-
 		try {
 			switch (path) {
-				case '/start': /* ... (保持不变) ... */ return await this.startSync();
-				case '/stop':  /* ... (保持不变) ... */ return await this.stopSync();
-				case '/status':/* ... (保持不变) ... */ return await this.getStatus();
-
-				case '/report': // 修改：处理新的 payload 格式
-					if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-					try {
-						// *** 修改：解析包含 photoCount 的 Body ***
-						const data = await request.json<{ pageCompleted?: number, photoCount?: number, error?: string }>();
-						// *** 结束修改 ***
-
-						if (data?.error) { // 优先处理错误报告
-							return await this.reportError(data.error);
-						} else if (typeof data?.pageCompleted === 'number' && typeof data?.photoCount === 'number') {
-							// 调用新的处理函数，传递 photoCount
-							return await this.handleSuccessfulPageReport(data.pageCompleted, data.photoCount);
-						} else {
-							return new Response('Bad Request: Missing pageCompleted/photoCount or error in body', { status: 400 });
-						}
-					} catch (e) { console.error(`[DO ${doIdShort}] Error parsing report body:`, e); return new Response('Bad Request: Invalid JSON body', { status: 400 }); }
-
-				case '/reset': /* ... (保持不变) ... */ return await this.resetState();
-
+				case '/start': /* ... */ return await this.startSync();
+				case '/stop':  /* ... */ return await this.stopSync();
+				case '/status':/* ... */ return await this.getStatus();
+				case '/report': /* ... (处理报告逻辑不变) ... */
+					const data = await request.json<{ pageCompleted?: number, photoCount?: number, error?: string }>();
+					if (data?.error) { return await this.reportError(data.error); }
+					else if (typeof data?.pageCompleted === 'number' && typeof data?.photoCount === 'number') { return await this.handleSuccessfulPageReport(data.pageCompleted, data.photoCount); }
+					else { return new Response('Bad Request', { status: 400 }); }
+				case '/reset': /* ... */ return await this.resetState();
 				default: return new Response('Not Found in DO', { status: 404 });
 			}
-		} catch (e: any) { /* ... (错误处理) ... */ return new Response(`Internal Server Error in DO`, { status: 500 }); }
+		} catch (e: any) { /* ... */ return new Response(`Internal Server Error in DO`, { status: 500 }); }
 	}
 
-	/** 开始同步任务 (保持不变) */
-	async startSync(): Promise<Response> { /* ... */ }
-
-	/** 停止同步任务 (保持不变) */
-	async stopSync(): Promise<Response> { /* ... */ }
-
-	/** 获取当前同步状态 (保持不变) */
-	async getStatus(): Promise<Response> { /* ... */ }
-
-	/** 内部方法：处理成功的页面完成报告 (修改) */
-	async handleSuccessfulPageReport(pageCompleted: number, photoCount: number): Promise<Response> { // <-- 接收 photoCount
+	// =====================================================
+	//  修改 startSync 方法以支持恢复
+	// =====================================================
+	async startSync(): Promise<Response> {
 		const doIdShort = this.state.id.toString().substring(0, 6);
-		let nextPageQueued = false;
-		let finalStatus = 'unknown';
+		let startSuccess = false;
+		let message = 'Sync already running or failed to start.';
+		let status = 409; // Conflict
 
 		await this.state.blockConcurrencyWhile(async () => {
 			const currentStatus = await this.storage.get<SyncState['syncStatus']>('syncStatus') ?? 'idle';
-			const lastPage = await this.storage.get<SyncState['lastProcessedPage']>('lastProcessedPage') ?? 0;
-
-			console.log(`[DO ${doIdShort}] Received success report for page ${pageCompleted} (Photo Count: ${photoCount}). Status: ${currentStatus}, LastPg: ${lastPage}`);
-
-			// 更新最后处理页码
-			if (pageCompleted >= lastPage) {
-				await this.storage.put('lastProcessedPage', pageCompleted);
-				console.log(`[DO ${doIdShort}] Updated lastProcessedPage to ${pageCompleted}`);
-			} else { /* ... (警告日志) ... */ }
-
-			// 检查是否需要继续以及是否已完成
 			if (currentStatus === 'running') {
-				// *** 新增：检查 photoCount 是否为 0 ***
-				if (photoCount > 0) {
-					// 仍然有数据，继续派发下一页
-					const nextPage = pageCompleted + 1;
-					// TODO: 将来可以根据 Unsplash 头信息或固定上限判断是否真的有下一页
-					try {
-						console.log(`[DO ${doIdShort}] Sending next task (page ${nextPage}) to queue...`);
-						await this.env.SYNC_TASK_QUEUE.send({ page: nextPage });
-						console.log(`[DO ${doIdShort}] Message for page ${nextPage} sent successfully.`);
-						nextPageQueued = true;
-						finalStatus = 'running'; // 保持运行状态
-					} catch (queueError: any) { /* ... (处理队列错误, 设置状态为 error) ... */ finalStatus = 'error'; }
-				} else {
-					// *** photoCount 为 0，表示同步完成 ***
-					console.log(`[DO ${doIdShort}] Received photo count 0 for page ${pageCompleted}. Sync process complete.`);
-					await this.storage.put('syncStatus', 'idle'); // <-- 设置状态为空闲
-					await this.storage.delete('lastError'); // 清除可能残留的错误信息
-					finalStatus = 'idle'; // 最终状态为空闲
-					nextPageQueued = false; // 没有派发下一页
-				}
-				// *** 结束新增检查 ***
-			} else { // 状态不是 running (可能是 stopping, error, idle)
-				console.log(`[DO ${doIdShort}] Status is '${currentStatus}', not queueing next page.`);
-				finalStatus = currentStatus;
-				nextPageQueued = false;
+				console.log(`[DO ${doIdShort}] Sync already running.`);
+				message = 'Sync already running.';
+				status = 409;
+				startSuccess = false;
+				return;
+			}
+
+			console.log(`[DO ${doIdShort}] Setting status to running and resuming/starting sync...`);
+
+			// --- *** 修改点 开始 *** ---
+			// 1. 读取上次成功处理的页码
+			const lastPage = await this.storage.get<SyncState['lastProcessedPage']>('lastProcessedPage') ?? 0;
+			// 2. 计算下一页 (恢复点)
+			const nextPageToQueue = lastPage + 1;
+			console.log(`[DO ${doIdShort}] Resuming/Starting from page ${nextPageToQueue} (last processed: ${lastPage})`);
+			// --- *** 修改点 结束 *** ---
+
+			// 更新状态：设置 running, 更新开始时间, 清除错误, **不重置 lastProcessedPage**
+			const newState: Partial<SyncState> = {
+				syncStatus: 'running',
+				lastRunStart: new Date().toISOString(),
+				// lastProcessedPage: 0, // <-- 不再重置这一行!
+				lastError: undefined
+			};
+			await this.storage.put(newState);
+			await this.storage.delete('lastError'); // 确保清除旧错误
+
+			try {
+				console.log(`[DO ${doIdShort}] Sending task (page ${nextPageToQueue}) to queue...`);
+				await this.env.SYNC_TASK_QUEUE.send({ page: nextPageToQueue }); // 发送下一页任务
+				console.log(`[DO ${doIdShort}] Message for page ${nextPageToQueue} sent successfully.`);
+				startSuccess = true;
+				message = `Sync ${nextPageToQueue === 1 ? 'started' : 'resumed'} successfully from page ${nextPageToQueue}.`; // 更新提示信息
+				status = 200; // OK
+			} catch (queueError: any) {
+				console.error(`[DO ${doIdShort}] Failed to send message for page ${nextPageToQueue} to queue:`, queueError);
+				const errorMsg = `Failed to queue task for page ${nextPageToQueue}: ${queueError.message}`;
+				await this.storage.put({ syncStatus: 'error', lastError: errorMsg });
+				message = errorMsg;
+				status = 500;
+				startSuccess = false;
 			}
 		}); // end blockConcurrencyWhile
 
-		// 返回给 sync-worker 的确认信息
-		return new Response(JSON.stringify({ success: true, finalStatus: finalStatus, nextPageQueued: nextPageQueued }), { headers: { 'Content-Type': 'application/json' } });
+		return new Response(JSON.stringify({ success: startSuccess, message: message }), { status: status, headers: { 'Content-Type': 'application/json' } });
 	}
 
-	/** 记录 sync-worker 遇到的错误 (保持不变) */
+	// stopSync 方法 (保持不变)
+	async stopSync(): Promise<Response> { /* ... */ }
+
+	// getStatus 方法 (保持不变)
+	async getStatus(): Promise<Response> { /* ... */ }
+
+	// handleSuccessfulPageReport 方法 (处理回调，逻辑保持不变)
+	async handleSuccessfulPageReport(pageCompleted: number, photoCount: number): Promise<Response> { /* ... */ }
+
+	// reportError 方法 (保持不变)
 	async reportError(errorMessage: string): Promise<Response> { /* ... */ }
 
-	/** 重置 DO 内部状态的方法 (保持不变) */
+	// resetState 方法 (保持不变，它仍然会将 lastProcessedPage 重置为 0)
 	async resetState(): Promise<Response> { /* ... */ }
 }
