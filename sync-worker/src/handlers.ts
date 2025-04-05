@@ -1,9 +1,8 @@
-// ~/imgN/sync-worker/src/handlers.ts (修正后)
-import { ExecutionContext, MessageBatch, Response } from '@cloudflare/workers-types';
-// Request type is globally available
+// ~/imgN/sync-worker/src/handlers.ts (修正后 - 移除 Response 导入)
+import { ExecutionContext, MessageBatch } from '@cloudflare/workers-types'; // 移除 Response
+// Request 和 Response 类型是全局可用的，无需导入
 
 // 导入类型定义和核心处理逻辑
-// 修复: Env 和 QueueMessagePayload 都从本地的 types.ts 导入
 import { Env, QueueMessagePayload, SyncPageResult } from './types';
 import { processSyncPage } from './sync-logic';
 
@@ -15,11 +14,13 @@ const corsHeadersMap = {
     'Access-Control-Max-Age': '86400',
 };
 
+// 函数签名中的 Response 仍然有效，因为它引用的是全局类型
 function addCorsHeaders(response: Response): Response {
     const newHeaders = new Headers(response.headers);
     Object.entries(corsHeadersMap).forEach(([key, value]) => {
         newHeaders.set(key, value);
     });
+    // 'new Response(...)' 构造函数也引用全局类型
     return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
@@ -27,6 +28,7 @@ function addCorsHeaders(response: Response): Response {
     });
 }
 
+// 函数签名中的 Request 和 Response 仍然有效
 function handleOptions(request: Request): Response {
     if (
         request.headers.get('Origin') !== null &&
@@ -46,6 +48,7 @@ function handleOptions(request: Request): Response {
 
 // --- Worker 事件处理程序 ---
 
+// 函数签名中的 Request, Env, ExecutionContext, Promise<Response> 仍然有效
 export async function handleFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestUrl = new URL(request.url);
     console.log(`[SyncWorker Fetch] Received: ${request.method} ${requestUrl.pathname}`);
@@ -54,7 +57,7 @@ export async function handleFetch(request: Request, env: Env, ctx: ExecutionCont
         return handleOptions(request);
     }
 
-    let response: Response;
+    let response: Response; // 类型 Response 仍然有效
 
     if (requestUrl.pathname === '/' || requestUrl.pathname === '/health') {
         const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>imgn-sync-worker Status</title><style>body{font-family: system-ui, sans-serif; padding: 2em; line-height: 1.6;} h1{color:#333;} p{color:#555;} code{background-color:#f4f4f4; padding:2px 4px; border-radius:3px;}</style></head><body><h1>imgn-sync-worker Status</h1><p>✅ This Worker is actively processing queue tasks.</p><p>It fetches data, updates the database, and stores images.</p><p>Monitor activity via Cloudflare dashboard logs or <code>wrangler tail imgn-sync-worker</code>.</p><hr><p><em>Current server time: ${new Date().toISOString()}</em></p></body></html>`;
@@ -66,13 +69,13 @@ export async function handleFetch(request: Request, env: Env, ctx: ExecutionCont
     return addCorsHeaders(response);
 }
 
+// 函数签名中的 MessageBatch, QueueMessagePayload, Env, ExecutionContext, Promise<void> 仍然有效
 export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`[QueueHandler] Received batch with ${batch.messages.length} message(s). Queue: ${batch.queue}`);
 
     const messagePromises = batch.messages.map(async (message) => {
         const messageId = message.id;
         let pageToProcess: number | undefined = undefined;
-        // 修复: 使用导入的 SyncPageResult 类型
         let processingResult: SyncPageResult | null = null;
 
         console.log(`[QueueHandler] Processing message ID: ${messageId}`);
@@ -90,11 +93,9 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
             console.log(`[QueueHandler] Calling processSyncPage for page ${pageToProcess} (Message ID: ${messageId})...`);
 
             if (typeof pageToProcess === 'number') {
-                // processingResult 的类型现在是 SyncPageResult
                 processingResult = await processSyncPage(pageToProcess, env, ctx);
             } else {
                 console.error(`[QueueHandler] Internal Logic Error: pageToProcess (${pageToProcess}) is not a number before calling processSyncPage for message ${messageId}.`);
-                // 确保返回的结构符合 SyncPageResult
                 processingResult = { success: false, photoCount: 0, error: 'Internal logic error: page number became invalid.' };
             }
 
@@ -108,7 +109,6 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 
         } catch (error: any) {
             console.error(`[QueueHandler] UNEXPECTED error processing message ID ${messageId} (Page ${pageToProcess ?? 'unknown'}):`, error);
-            // 确保返回的结构符合 SyncPageResult
             processingResult = {
                 success: false,
                 photoCount: 0,
@@ -138,7 +138,7 @@ export async function handleQueue(batch: MessageBatch<QueueMessagePayload>, env:
 
                     ctx.waitUntil(
                         env.API_WORKER.fetch(reportPath, reportOptions)
-                            .then(async (res: Response) => {
+                            .then(async (res: Response) => { // 类型 Response 仍然有效
                                 if (!res.ok) {
                                     const errorText = await res.text();
                                     console.error(`[Service Binding Error] Failed to report page ${pageToProcess} to API_WORKER. Status: ${res.status}. Response:`, errorText);
