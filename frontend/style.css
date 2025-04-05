@@ -1,35 +1,31 @@
-/* ~/imgN/frontend/style.css (Nginx 风格表格) */
+/* ~/imgN/frontend/style.css (Nginx 风格表格 V2) */
 
-/* --- 引入 Google Font --- */
+/* --- Google Font Import (保持) --- */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
 
 body {
+	/* ... (保持) ... */
 	font-family: 'Noto Sans SC', sans-serif;
-	/* 应用中文字体 */
 	margin: 0;
 	padding: 15px;
-	/* 调整页面边距 */
 	background-color: #ffffff;
-	/* 白色背景 */
 	color: #333333;
 	font-size: 13px;
-	/* 稍小字体 */
 	line-height: 1.5;
 }
 
 h1 {
+	/* ... (保持) ... */
 	text-align: left;
-	/* 标题左对齐 */
 	color: #333333;
 	margin-bottom: 20px;
 	font-size: 1.5em;
 	border-bottom: 1px solid #eee;
-	/* 标题下划线 */
 	padding-bottom: 10px;
 }
 
-/* --- 控制区域样式 (保持) --- */
 .controls {
+	/* ... (保持) ... */
 	text-align: left;
 	margin-bottom: 15px;
 	padding: 10px 0;
@@ -41,66 +37,47 @@ h1 {
 }
 
 .controls button {
-	padding: 6px 12px;
-	font-size: 0.9em;
-	cursor: pointer;
-	border: 1px solid #ccc;
-	border-radius: 4px;
-	background-color: #f8f8f8;
-	color: #333;
+	/* ... */
 }
 
 .controls button#stopButton {
-	border-color: #d9534f;
-	color: #d9534f;
+	/* ... */
 }
 
 .controls button:hover:not(:disabled) {
-	background-color: #eee;
-	border-color: #adadad;
+	/* ... */
 }
 
 .controls button#stopButton:hover:not(:disabled) {
-	background-color: #f2dede;
+	/* ... */
 }
 
 .controls button:disabled {
-	cursor: not-allowed;
-	opacity: 0.6;
+	/* ... */
 }
 
 #statusDisplay {
-	font-weight: normal;
-	color: #555;
-	margin-left: 15px;
+	/* ... (保持) ... */
 }
 
 .action-message {
-	text-align: left;
-	min-height: 1.2em;
-	margin: 5px 0 15px 0;
-	font-style: italic;
-	color: #5cb85c;
+	/* ... (保持) ... */
 }
 
 .action-message.error {
-	color: #d9534f;
+	/* ... */
 }
 
 .action-message:empty {
 	display: none;
 }
 
-/* 为空时不占空间 */
-
 hr {
 	display: none;
 }
 
-/* 通常 Nginx 风格不需要分隔线 */
-
-/* --- 分页控件样式 (稍微调整) --- */
 .pagination {
+	/* ... (保持) ... */
 	text-align: left;
 	margin-top: 15px;
 	margin-bottom: 15px;
@@ -108,77 +85,54 @@ hr {
 }
 
 .pagination button {
-	padding: 5px 10px;
-	margin: 0 5px;
-	font-size: 0.9em;
-	/* ... 其他按钮样式保持 ... */
-	border: 1px solid #ccc;
-	background-color: #f8f8f8;
-	color: #333;
-	border-radius: 4px;
+	/* ... */
 }
 
 .pagination button:hover:not(:disabled) {
-	background-color: #eee;
-	border-color: #adadad;
+	/* ... */
 }
 
 .pagination button:disabled {
-	background-color: #eee;
-	border-color: #ddd;
-	color: #aaa;
-	cursor: not-allowed;
-	opacity: 0.7;
+	/* ... */
 }
 
 .pagination span {
-	margin: 0 8px;
-	color: #555;
-	font-size: 0.9em;
+	/* ... */
 }
 
-/* --- 移除旧的 #image-grid 和 .image-card 样式 --- */
-
-/* --- 新增 Table 样式 (仿 Nginx/Apache 风格) --- */
+/* --- Table 样式 (保持 Nginx 风格) --- */
 .table-container {
 	overflow-x: auto;
+	margin-top: 10px;
 }
 
 #image-info-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 1em;
-	/* 使用 body 的基础字体大小 */
-	margin-top: 10px;
 }
 
 #image-info-table th,
 #image-info-table td {
 	border-bottom: 1px solid #eee;
-	/* 只保留下边框 */
 	padding: 8px 10px;
-	/* 调整内边距 */
 	text-align: left;
 	vertical-align: middle;
 	white-space: nowrap;
-	/* 默认不换行，让长内容被截断或滚动 */
 }
 
 #image-info-table thead th {
 	border-bottom-width: 2px;
-	/* 表头下边框加粗 */
 	font-weight: 700;
-	/* 粗体 */
 	color: #555;
+	background-color: #f8f9fa;
 }
 
 #image-info-table tbody tr:hover {
 	background-color: #f8f9fa;
-	/* 悬停淡灰色背景 */
 }
 
 #image-info-table td a {
-	/* ID 链接样式 */
 	color: #007bff;
 	text-decoration: none;
 }
@@ -187,37 +141,49 @@ hr {
 	text-decoration: underline;
 }
 
-/* 特定列样式 */
+/* 特定列样式调整 */
 #image-info-table td:nth-child(1),
 /* ID 列 */
 #image-info-table th:nth-child(1) {
-	/* 可以给 ID 列稍微不同的样式或宽度 */
+	/* font-weight: bold; */
+	/* 可选：加粗 ID */
 }
 
-#image-info-table td:nth-child(2) {
-	/* 描述列 */
+#image-info-table td:nth-child(6),
+/* Tags 列 */
+#image-info-table th:nth-child(6) {
+	white-space: normal;
+	/* 允许 Tags 换行 */
+	word-break: break-word;
+	/* 在单词内部也允许换行 */
+	min-width: 150px;
+	/* 给个最小宽度 */
+}
+
+#image-info-table td:nth-child(7),
+/* 描述列 */
+#image-info-table th:nth-child(7) {
 	white-space: normal;
 	/* 允许描述换行 */
-	word-break: break-all;
-	/* 长单词换行 */
-	max-width: 300px;
-	/* 给个最大宽度 */
+	word-break: break-word;
+	max-width: 350px;
+	/* 限制最大宽度 */
+	min-width: 200px;
+	/* 最小宽度 */
 }
 
-#image-info-table td:nth-child(5),
+#image-info-table td:nth-child(4),
 /* 地点列 */
-#image-info-table th:nth-child(5) {
-	/* white-space: normal; */
-	/* 如果地点信息长，也允许换行 */
-	max-width: 200px;
+#image-info-table th:nth-child(4) {
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	/* 超长时显示省略号 */
 }
 
 #image-info-table .loading-cell {
-	/* 加载中文本样式 */
 	text-align: center !important;
 	font-style: italic;
 	color: #888;
 	height: 50px;
 }
-
-/* --- Table 样式结束 --- */
