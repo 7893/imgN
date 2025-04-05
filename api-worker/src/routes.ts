@@ -54,11 +54,21 @@ export async function handleHealth(request: IRequest, env: Env): Promise<Respons
 
 // 处理 /images 请求 (包含 KV 缓存逻辑)
 export async function handleGetImages(request: IRequest, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url); // itty-router 的 request 对象可能没有 url，需要从原始 request 获取，或者 itty-router 提供了方式
-    // 注意：itty-router 的 request (IRequest) 可能需要不同的方式获取查询参数
-    // 假设我们可以通过 request.query 获取
-    const page = parseInt(request.query?.page || '1', 10);
-    const limit = parseInt(request.query?.limit || '10', 10); // 默认 10
+    const url = new URL(request.url);
+    
+    // 处理查询参数，确保获取单个字符串值
+    const getQueryParam = (param: string | string[] | undefined): string => {
+        if (Array.isArray(param)) {
+            return param[0] || '';
+        }
+        return param || '';
+    };
+
+    const pageParam = getQueryParam(request.query?.page);
+    const limitParam = getQueryParam(request.query?.limit);
+
+    const page = parseInt(pageParam, 10);
+    const limit = parseInt(limitParam, 10);
 
     const pageNum = Math.max(1, isNaN(page) ? 1 : page);
     const limitNum = Math.min(50, Math.max(1, isNaN(limit) ? 10 : limit));
@@ -70,27 +80,66 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
         const cachedData = await env.KV_CACHE.get(cacheKey, "text");
         if (cachedData !== null) {
             console.log(`[Cache] 命中 Key: ${cacheKey}`);
-            return new Response(cachedData, { headers: { 'Content-Type': 'application/json', 'X-Cache-Status': 'hit' } });
-        } else {
-            console.log(`[Cache] 未命中 Key: ${cacheKey}. 查询 D1...`);
-            const offset = (pageNum - 1) * limitNum;
-            // ... (D1 查询逻辑 - count + data) ...
-            const countStmt = env.DB.prepare(`SELECT COUNT(*) as total FROM img3_metadata;`);
-            const dataStmt = env.DB.prepare(`SELECT * FROM img3_metadata ORDER BY created_at_api DESC LIMIT ?1 OFFSET ?2;`).bind(limitNum, offset);
-            const [countResult, dataResult] = await Promise.all([countStmt.first<{ total: number }>(), dataStmt.all()]);
-            if (!dataResult.success) { throw new Error(`D1 查询失败: ${dataResult.error}`); }
-            const totalImages = countResult?.total ?? 0; const totalPages = Math.ceil(totalImages / limitNum); const images = dataResult.results ?? [];
-            // ... (构造 responsePayload) ...
-            const responsePayload = { success: true, data: { images, page: pageNum, limit: limitNum, totalImages, totalPages }, message: "从源获取成功。" };
-            const responsePayloadString = JSON.stringify(responsePayload);
-            // ... (异步写入 KV) ...
-            const cacheTtlSeconds = 60;
-            ctx.waitUntil(env.KV_CACHE.put(cacheKey, responsePayloadString, { expirationTtl: cacheTtlSeconds }).catch(err => console.error(`[Cache] KV put 失败:`, err)));
-            // ... (返回响应) ...
-            return new Response(responsePayloadString, { headers: { 'Content-Type': 'application/json', 'X-Cache-Status': 'miss' } });
+            return new Response(cachedData, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Cache-Status': 'hit'
+                }
+            });
         }
-    } catch (dbOrKvError) {
-        console.error(`[/images Handler] 处理 KV 或 D1 时出错:`, dbOrKvError);
-        throw new StatusError(500, "处理图片请求时发生内部错误。"); // itty-router 推荐抛出 StatusError
+
+        console.log(`[Cache] 未命中 Key: ${cacheKey}. 查询 D1...`);
+        const offset = (pageNum - 1) * limitNum;
+
+        // D1 查询
+        const countStmt = env.DB.prepare('SELECT COUNT(*) as total FROM img3_metadata;');
+        const dataStmt = env.DB.prepare(
+            'SELECT * FROM img3_metadata ORDER BY created_at_api DESC LIMIT ?1 OFFSET ?2;'
+        ).bind(limitNum, offset);
+
+        const [countResult, dataResult] = await Promise.all([
+            countStmt.first<{ total: number }>(),
+            dataStmt.all()
+        ]);
+
+        if (!dataResult.success) {
+            throw new Error(`D1 查询失败: ${dataResult.error}`);
+        }
+
+        const totalImages = countResult?.total ?? 0;
+        const totalPages = Math.ceil(totalImages / limitNum);
+        const images = dataResult.results ?? [];
+
+        const responsePayload = {
+            success: true,
+            data: {
+                images,
+                page: pageNum,
+                limit: limitNum,
+                totalImages,
+                totalPages
+            },
+            message: "从源获取成功。"
+        };
+
+        const responsePayloadString = JSON.stringify(responsePayload);
+        
+        // 异步写入 KV 缓存
+        const cacheTtlSeconds = 60;
+        ctx.waitUntil(
+            env.KV_CACHE.put(cacheKey, responsePayloadString, {
+                expirationTtl: cacheTtlSeconds
+            }).catch(err => console.error('[Cache] KV put 失败:', err))
+        );
+
+        return new Response(responsePayloadString, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Cache-Status': 'miss'
+            }
+        });
+    } catch (error) {
+        console.error('[/images Handler] 处理 KV 或 D1 时出错:', error);
+        throw new StatusError(500, "处理图片请求时发生内部错误。");
     }
 }
