@@ -3,13 +3,16 @@ name: Deploy API Worker
 on:
   push:
     branches:
-      - main # 当推送到 main 分支时触发
+      - main
     paths:
-      - 'api-worker/**'             # 仅当 api-worker 目录内容变化时触发
-      - '.github/workflows/deploy-api-worker.yml' # 当此 workflow 文件本身变化时也触发
+      - 'api-worker/**'             # 监控 api-worker 目录
+      - '.github/workflows/deploy-api-worker.yml' 
+      - 'pnpm-lock.yaml'            # 监控根锁文件变化
+      - 'package.json'              # 监控根 package.json
+      # - 'packages/**'             # 如果有共享 packages 目录也监控
 
 permissions:
-  contents: read # 需要读取仓库内容的权限
+  contents: read
 
 jobs:
   deploy:
@@ -19,21 +22,26 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3 # 使用 pnpm setup action
+        with:
+          version: latest # 使用最新版 pnpm
+          run_install: false # 不自动运行 install
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # 使用 Node.js 20
+          node-version: '20' # 使用 Node 20
+          cache: 'pnpm' # 启用 pnpm 缓存
 
-      # 安装 api-worker 的依赖 (如果 package-lock.json 存在且已提交，用 npm ci 更优)
-      - name: Install dependencies for api-worker
-        run: cd api-worker && npm ci 
+      - name: Install Dependencies (Root + Workspace)
+        run: pnpm install --frozen-lockfile # 在根目录运行一次 install
 
-      - name: Install Wrangler CLI
-        run: npm install -g wrangler@^4 # 全局安装 Wrangler
+      # 不需要单独安装 wrangler 了，因为它现在是根目录的 devDependency
 
-      # 部署 api-worker (使用 GitHub Secrets)
       - name: Deploy api-worker
-        run: cd api-worker && wrangler deploy
+        # 使用 pnpm --filter 来指定要执行命令的包
+        run: pnpm --filter imgn-api-worker deploy 
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

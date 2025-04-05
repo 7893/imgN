@@ -1,0 +1,4 @@
+packages:
+  - 'api-worker'
+  - 'sync-worker'
+  # 如果将来有共享包，可以添加 'packages/*'

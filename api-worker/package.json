@@ -1,22 +1,18 @@
 {
-	"name": "api-worker",
-	"version": "0.0.0",
-	"private": true,
-	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
-		"start": "wrangler dev",
-		"test": "vitest",
-		"cf-typegen": "wrangler types"
-	},
-	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.8.11",
-		"@cloudflare/workers-types": "^4.20250404.0",
-		"typescript": "^5.5.2",
-		"vitest": "~3.1.1",
-		"wrangler": "^4.7.1"
-	},
-	"dependencies": {
-		"itty-router": "^5.0.18"
-	}
+  "name": "imgn-api-worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "itty-router": "^4.0.27"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "@cloudflare/vitest-pool-workers": "^0.8.11"
+  }
 }
