@@ -83,7 +83,8 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
             return new Response(cachedData, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Cache-Status': 'hit'
+                    'X-Cache-Status': 'hit',
+                    'Access-Control-Allow-Origin': '*'
                 }
             });
         }
@@ -93,9 +94,33 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
 
         // D1 查询
         const countStmt = env.DB.prepare('SELECT COUNT(*) as total FROM img3_metadata;');
-        const dataStmt = env.DB.prepare(
-            'SELECT * FROM img3_metadata ORDER BY created_at_api DESC LIMIT ?1 OFFSET ?2;'
-        ).bind(limitNum, offset);
+        const dataStmt = env.DB.prepare(`
+            SELECT 
+                id,
+                created_at_api,
+                updated_at_api,
+                width,
+                height,
+                color,
+                blur_hash,
+                description,
+                alt_description,
+                urls_raw,
+                urls_full,
+                urls_regular,
+                urls_small,
+                urls_thumb,
+                user_id,
+                user_username,
+                user_name,
+                location_city,
+                location_country,
+                location_lat,
+                location_lon
+            FROM img3_metadata 
+            ORDER BY created_at_api DESC 
+            LIMIT ?1 OFFSET ?2;
+        `).bind(limitNum, offset);
 
         const [countResult, dataResult] = await Promise.all([
             countStmt.first<{ total: number }>(),
@@ -108,7 +133,39 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
 
         const totalImages = countResult?.total ?? 0;
         const totalPages = Math.ceil(totalImages / limitNum);
-        const images = dataResult.results ?? [];
+        
+        // 转换数据库结果为前端期望的格式
+        const images = (dataResult.results ?? []).map(row => ({
+            id: row.id,
+            created_at: row.created_at_api,
+            updated_at: row.updated_at_api,
+            width: row.width,
+            height: row.height,
+            color: row.color,
+            blur_hash: row.blur_hash,
+            description: row.description,
+            alt_description: row.alt_description,
+            urls: {
+                raw: row.urls_raw,
+                full: row.urls_full,
+                regular: row.urls_regular,
+                small: row.urls_small,
+                thumb: row.urls_thumb
+            },
+            user: {
+                id: row.user_id,
+                username: row.user_username,
+                name: row.user_name
+            },
+            location: row.location_city || row.location_country ? {
+                city: row.location_city,
+                country: row.location_country,
+                position: (row.location_lat || row.location_lon) ? {
+                    latitude: row.location_lat,
+                    longitude: row.location_lon
+                } : undefined
+            } : undefined
+        }));
 
         const responsePayload = {
             success: true,
@@ -119,7 +176,7 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
                 totalImages,
                 totalPages
             },
-            message: "从源获取成功。"
+            message: "获取成功"
         };
 
         const responsePayloadString = JSON.stringify(responsePayload);
@@ -135,11 +192,23 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
         return new Response(responsePayloadString, {
             headers: {
                 'Content-Type': 'application/json',
-                'X-Cache-Status': 'miss'
+                'X-Cache-Status': 'miss',
+                'Access-Control-Allow-Origin': '*'
             }
         });
     } catch (error) {
         console.error('[/images Handler] 处理 KV 或 D1 时出错:', error);
-        throw new StatusError(500, "处理图片请求时发生内部错误。");
+        const errorResponse = {
+            success: false,
+            error: error instanceof Error ? error.message : "处理图片请求时发生内部错误",
+            data: null
+        };
+        return new Response(JSON.stringify(errorResponse), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
+        });
     }
 }
