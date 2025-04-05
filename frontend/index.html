@@ -18,16 +18,18 @@
     </div>
     <div id="actionMessage" class="action-message"></div>
 
+    <hr style="display: none;">
     <div class="pagination">
         <button id="prevButton" disabled>&lt; 上一页</button>
-        <span id="pageInfo">第 1 / ? 页 (共 0 条记录)</span> <button id="nextButton" disabled>下一页 &gt;</button>
+        <span id="pageInfo">第 1 / ? 页 (共 0 条记录)</span>
+        <button id="nextButton" disabled>下一页 &gt;</button>
     </div>
 
     <div class="table-container">
         <table id="image-info-table">
             <thead>
                 <tr>
-                    <th>图片 ID</th>
+                    <th>图片 ID (链接)</th>
                     <th>大小</th>
                     <th>分辨率 (宽x高)</th>
                     <th>拍摄地点</th>
@@ -43,9 +45,11 @@
             </tbody>
         </table>
     </div>
+
     <div class="pagination" style="margin-top: 20px;">
         <button id="prevButtonBottom" disabled>&lt; 上一页</button>
-        <span id="pageInfoBottom">第 1 / ? 页 (共 0 条记录)</span> <button id="nextButtonBottom" disabled>下一页 &gt;</button>
+        <span id="pageInfoBottom">第 1 / ? 页 (共 0 条记录)</span>
+        <button id="nextButtonBottom" disabled>下一页 &gt;</button>
     </div>
 
     <script src="script.js"></script>
