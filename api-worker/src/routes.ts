@@ -116,7 +116,12 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
                 location_city,
                 location_country,
                 location_lat,
-                location_lon
+                location_lon,
+                author_details,
+                photo_links,
+                location_details,
+                tags_data,
+                resolution
             FROM img3_metadata 
             ORDER BY created_at_api DESC 
             LIMIT ?1 OFFSET ?2;
@@ -137,34 +142,15 @@ export async function handleGetImages(request: IRequest, env: Env, ctx: Executio
         // 转换数据库结果为前端期望的格式
         const images = (dataResult.results ?? []).map(row => ({
             id: row.id,
-            created_at: row.created_at_api,
-            updated_at: row.updated_at_api,
-            width: row.width,
-            height: row.height,
-            color: row.color,
-            blur_hash: row.blur_hash,
+            created_at_api: row.created_at_api,
+            updated_at_api: row.updated_at_api,
+            resolution: row.resolution,
             description: row.description,
             alt_description: row.alt_description,
-            urls: {
-                raw: row.urls_raw,
-                full: row.urls_full,
-                regular: row.urls_regular,
-                small: row.urls_small,
-                thumb: row.urls_thumb
-            },
-            user: {
-                id: row.user_id,
-                username: row.user_username,
-                name: row.user_name
-            },
-            location: row.location_city || row.location_country ? {
-                city: row.location_city,
-                country: row.location_country,
-                position: (row.location_lat || row.location_lon) ? {
-                    latitude: row.location_lat,
-                    longitude: row.location_lon
-                } : undefined
-            } : undefined
+            author_details: row.author_details,
+            photo_links: row.photo_links,
+            location_details: row.location_details,
+            tags_data: row.tags_data
         }));
 
         const responsePayload = {
