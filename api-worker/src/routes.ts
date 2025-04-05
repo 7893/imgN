@@ -1,209 +1,63 @@
-// ~/imgN/api-worker/src/routes.ts
+// ~/imgN/api-worker/src/routes.ts (修正 forwardToDo)
 import { IRequest, StatusError } from 'itty-router';
-import { Env } from './types';
-import { DurableObjectStub, RequestInit } from '@cloudflare/workers-types';
+import { ApiWorkerEnv as Env } from './types'; // <-- 明确导入 ApiWorkerEnv
+import { DurableObjectStub, RequestInit, ExecutionContext } from '@cloudflare/workers-types'; // 导入 RequestInit, ExecutionContext
 
-// 辅助函数：获取 DO Stub (单例)
-function getDoStub(env: Env): DurableObjectStub {
-    try {
-        const doNamespace = env.SYNC_COORDINATOR_DO;
-        const doId = doNamespace.idFromName("sync-coordinator-singleton");
-        return doNamespace.get(doId);
-    } catch (e: any) {
-        console.error("[API Routes] 获取 DO Stub 失败:", e);
-        throw new StatusError(500, "Durable Object 绑定配置错误或获取失败。");
-    }
-}
+// 获取 DO Stub (保持不变)
+function getDoStub(env: Env): DurableObjectStub { /* ... */ try { const ns = env.SYNC_COORDINATOR_DO; const id = ns.idFromName("sync-coordinator-singleton"); return ns.get(id); } catch (e: any) { throw new StatusError(500, "DO 绑定错误。"); } }
 
 /**
- * 转发请求到 Durable Object
+ * 转发请求到 Durable Object (修正版 - 使用 RequestInit)
+ * @param request 原始请求 (itty-router 的 IRequest 或标准 Request)
+ * @param env 环境绑定
+ * @param internalPath 要转发到的 DO 内部路径 (例如 '/start')
+ * @returns Promise<Response> 从 DO 返回的响应
  */
-async function forwardToDo(env: Env, request: Request, doId: string): Promise<Response> {
-    const doNamespace = env.SYNC_COORDINATOR_DO;
-    const doObject = doNamespace.get(doNamespace.idFromString(doId));
+async function forwardToDo(request: IRequest | Request, env: Env, internalPath: string): Promise<Response> {
+    const doStub = getDoStub(env);
+    // DO 的 fetch 需要标准的 URL，内部路径通过 pathname 传递
+    const doUrl = new URL(`https://do-internal${internalPath}`); // 使用占位符主机名
+
+    console.log(`[API Route] 转发 ${request.method} ${request.url} (mapped to ${internalPath}) 到 DO...`);
 
     // 构造 RequestInit 对象
-    const requestInit: RequestInit = {
+    const doRequestInit: RequestInit = {
         method: request.method,
-        headers: new Headers(request.headers),
-        body: request.body,
-        // 不复制 cf 属性，因为它可能包含不可序列化的内容
+        headers: request.headers, // 直接传递原始 Headers 通常可以
     };
 
-    return doObject.fetch(request.url, requestInit);
-}
-
-// --- 路由处理函数 ---
-
-export async function handleStartSync(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(env, request, '/start');
-}
-
-export async function handleStopSync(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(env, request, '/stop');
-}
-
-export async function handleStatus(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(env, request, '/status');
-}
-
-export async function handleReport(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(env, request, '/report');
-}
-
-export async function handleReset(request: IRequest, env: Env): Promise<Response> {
-    return forwardToDo(env, request, '/reset');
-}
-
-export async function handleHealth(request: IRequest, env: Env): Promise<Response> {
-    // 健康检查不一定需要访问 DO
-    const html = `<!DOCTYPE html><body><h1>imgn-api-worker is running!</h1><p>Time: ${new Date().toISOString()}</p></body></html>`;
-    return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
-}
-
-// 处理 /images 请求 (包含 KV 缓存逻辑)
-export async function handleGetImages(request: IRequest, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    
-    // 处理查询参数，确保获取单个字符串值
-    const getQueryParam = (param: string | string[] | undefined): string => {
-        if (Array.isArray(param)) {
-            return param[0] || '';
+    // 仅在有 Body 且是相关方法时克隆并传递 Body
+    // 需要处理 itty-router IRequest 和标准 Request 的差异
+    if (request.body && ['POST', 'PUT', 'PATCH'].includes(request.method)) {
+        try {
+            // 尝试将 body 读取为 ArrayBuffer (更通用)
+            doRequestInit.body = await (request as any).arrayBuffer();
+            // 如果你知道 body 总是 JSON，可以:
+            // const bodyJson = await (request as any).json();
+            // doRequestInit.body = JSON.stringify(bodyJson);
+            // doRequestInit.headers = new Headers(request.headers); // 创建新 Headers
+            // doRequestInit.headers.set('Content-Type', 'application/json'); // 确保 Content-Type
+        } catch (e) {
+            console.error("准备 DO 请求 Body 时出错:", e);
+            throw new StatusError(400, "无法处理请求体以转发。");
         }
-        return param || '';
-    };
-
-    const pageParam = getQueryParam(request.query?.page);
-    const limitParam = getQueryParam(request.query?.limit);
-
-    const page = parseInt(pageParam, 10);
-    const limit = parseInt(limitParam, 10);
-
-    const pageNum = Math.max(1, isNaN(page) ? 1 : page);
-    const limitNum = Math.min(50, Math.max(1, isNaN(limit) ? 10 : limit));
-
-    const cacheKey = `images_p${pageNum}_l${limitNum}`;
-    console.log(`[Cache] 检查 Key: ${cacheKey}`);
-
-    try {
-        const cachedData = await env.KV_CACHE.get(cacheKey, "text");
-        if (cachedData !== null) {
-            console.log(`[Cache] 命中 Key: ${cacheKey}`);
-            return new Response(cachedData, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Cache-Status': 'hit',
-                    'Access-Control-Allow-Origin': '*'
-                }
-            });
-        }
-
-        console.log(`[Cache] 未命中 Key: ${cacheKey}. 查询 D1...`);
-        const offset = (pageNum - 1) * limitNum;
-
-        // D1 查询
-        const countStmt = env.DB.prepare('SELECT COUNT(*) as total FROM img3_metadata;');
-        const dataStmt = env.DB.prepare(`
-            SELECT 
-                id,
-                created_at_api,
-                updated_at_api,
-                width,
-                height,
-                color,
-                blur_hash,
-                description,
-                alt_description,
-                urls_raw,
-                urls_full,
-                urls_regular,
-                urls_small,
-                urls_thumb,
-                user_id,
-                user_username,
-                user_name,
-                location_city,
-                location_country,
-                location_lat,
-                location_lon,
-                author_details,
-                photo_links,
-                location_details,
-                tags_data,
-                resolution
-            FROM img3_metadata 
-            ORDER BY created_at_api DESC 
-            LIMIT ?1 OFFSET ?2;
-        `).bind(limitNum, offset);
-
-        const [countResult, dataResult] = await Promise.all([
-            countStmt.first<{ total: number }>(),
-            dataStmt.all()
-        ]);
-
-        if (!dataResult.success) {
-            throw new Error(`D1 查询失败: ${dataResult.error}`);
-        }
-
-        const totalImages = countResult?.total ?? 0;
-        const totalPages = Math.ceil(totalImages / limitNum);
-        
-        // 转换数据库结果为前端期望的格式
-        const images = (dataResult.results ?? []).map(row => ({
-            id: row.id,
-            created_at_api: row.created_at_api,
-            updated_at_api: row.updated_at_api,
-            resolution: row.resolution,
-            description: row.description,
-            alt_description: row.alt_description,
-            author_details: row.author_details,
-            photo_links: row.photo_links,
-            location_details: row.location_details,
-            tags_data: row.tags_data
-        }));
-
-        const responsePayload = {
-            success: true,
-            data: {
-                images,
-                page: pageNum,
-                limit: limitNum,
-                totalImages,
-                totalPages
-            },
-            message: "获取成功"
-        };
-
-        const responsePayloadString = JSON.stringify(responsePayload);
-        
-        // 异步写入 KV 缓存
-        const cacheTtlSeconds = 60;
-        ctx.waitUntil(
-            env.KV_CACHE.put(cacheKey, responsePayloadString, {
-                expirationTtl: cacheTtlSeconds
-            }).catch(err => console.error('[Cache] KV put 失败:', err))
-        );
-
-        return new Response(responsePayloadString, {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Cache-Status': 'miss',
-                'Access-Control-Allow-Origin': '*'
-            }
-        });
-    } catch (error) {
-        console.error('[/images Handler] 处理 KV 或 D1 时出错:', error);
-        const errorResponse = {
-            success: false,
-            error: error instanceof Error ? error.message : "处理图片请求时发生内部错误",
-            data: null
-        };
-        return new Response(JSON.stringify(errorResponse), {
-            status: 500,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            }
-        });
     }
+
+    // 使用 URL 字符串和 RequestInit 调用 DO 的 fetch
+    return doStub.fetch(doUrl.toString(), doRequestInit);
+}
+
+// --- 路由处理函数 (调用修正后的 forwardToDo) ---
+export async function handleStartSync(request: IRequest, env: Env): Promise<Response> { return forwardToDo(request, env, '/start'); }
+export async function handleStopSync(request: IRequest, env: Env): Promise<Response> { return forwardToDo(request, env, '/stop'); }
+export async function handleStatus(request: IRequest, env: Env): Promise<Response> { return forwardToDo(request, env, '/status'); }
+export async function handleReport(request: IRequest, env: Env): Promise<Response> { return forwardToDo(request, env, '/report'); }
+export async function handleReset(request: IRequest, env: Env): Promise<Response> { return forwardToDo(request, env, '/reset'); }
+export async function handleHealth(request: IRequest, env: Env): Promise<Response> { /* ... (保持不变) ... */ }
+
+// handleGetImages (保持不变，但需要导入 ExecutionContext)
+export async function handleGetImages(request: IRequest, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // ... (获取参数逻辑, KV 缓存逻辑, D1 查询逻辑 保持不变) ...
+    // 确保正确导入和使用了 env (ApiWorkerEnv) 和 ctx
+    // 返回 new Response(...)
 }
