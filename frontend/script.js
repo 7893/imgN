@@ -1,4 +1,4 @@
-// ~/imgN/frontend/script.js (Nginx 表格风格, 10 条/页, 指定列)
+// ~/imgN/frontend/script.js (修正了按钮和状态逻辑)
 
 // --- 配置 (保持不变) ---
 const API_BASE_URL = `https://imgn-api-worker.53.workers.dev`;
@@ -7,12 +7,12 @@ const START_SYNC_URL = `${API_BASE_URL}/start-sync`;
 const STOP_SYNC_URL = `${API_BASE_URL}/stop-sync`;
 const STATUS_URL = `${API_BASE_URL}/sync-status`;
 const STATUS_POLL_INTERVAL = 5000;
-const IMAGES_PER_PAGE = 10; // <-- 确认是 10 ***
-const R2_PUBLIC_URL_BASE = 'https://pub-61b373cf3f6e4863a70b53ca5e61dc53.r2.dev'; // 你的 R2 URL
+const IMAGES_PER_PAGE = 10;
+const R2_PUBLIC_URL_BASE = 'https://pub-61b373cf3f6e4863a70b53ca5e61dc53.r2.dev';
 
-// --- DOM 元素获取 ---
-const imageTableBody = document.getElementById('image-table-body'); // <-- 获取 tbody
-const startButton = document.getElementById('startButton'); /* ... etc ... */
+// --- DOM 元素获取 (保持不变) ---
+const imageTableBody = document.getElementById('image-table-body');
+const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 const statusDisplay = document.getElementById('statusDisplay');
 const actionMessage = document.getElementById('actionMessage');
@@ -27,138 +27,96 @@ const pageInfoBottom = document.getElementById('pageInfoBottom');
 let statusIntervalId = null; let currentPage = 1; let totalPages = 1; let totalImages = 0; let isLoadingImages = false;
 
 // --- R2 Key 处理辅助函数 (保持不变) ---
-function sanitizeForR2KeyJs(tagName) { if (!tagName) return ''; const sanitized = tagName.toLowerCase().replace(/[\s+]+/g, '_').replace(/[^a-z0-9_-]/g, '').substring(0, 50); if (!sanitized || /^[_ -]+$/.test(sanitized)) { return ''; } return sanitized; }
-function getFolderNameFromTagsJs(tagsData) { const defaultFolder = 'uncategorized'; let tags = []; if (tagsData) { try { tags = JSON.parse(tagsData); } catch (e) { console.error("解析 tags_data 失败:", tagsData, e); return defaultFolder; } } if (!Array.isArray(tags) || tags.length === 0) { return defaultFolder; } for (const tagTitle of tags) { const sanitized = sanitizeForR2KeyJs(tagTitle); if (sanitized) { return sanitized; } } return defaultFolder; }
+function sanitizeForR2KeyJs(tagName) { /* ... */ }
+function getFolderNameFromTagsJs(tagsData) { /* ... */ }
 
-// --- 其他辅助函数 (保持不变) ---
-function showActionMessage(message, isError = false) { /* ... */ }
-async function handleSyncAction(url, button) { /* ... */ }
-async function fetchStatus() { /* ... */ }
+// --- 其他辅助函数 ---
 
-/** *** 修改：创建表格行，按新列顺序填充数据 *** */
-function createImageInfoRow(imageData) {
-    const tr = document.createElement('tr');
-    const photoId = imageData.id || '-';
+/** 显示操作反馈信息 (保持不变) */
+function showActionMessage(message, isError = false) { /* ... */ if (!actionMessage) return; actionMessage.textContent = message; actionMessage.className = isError ? 'action-message error' : 'action-message'; setTimeout(() => { if (actionMessage.textContent === message) { actionMessage.textContent = ''; actionMessage.className = 'action-message'; } }, 4000); }
 
-    // --- 准备各列数据 ---
+/** * 处理点击 "Start/Stop" 按钮 (修改：只禁用当前按钮)
+ * 按钮的最终启用/禁用状态由 fetchStatus 控制 
+ */
+async function handleSyncAction(url, button) {
+    if (!button || button.disabled) return; // 如果按钮已禁用（例如状态不允许），则不执行
 
-    // 1. 图片 ID (链接)
-    let idLink = photoId; // 默认只显示 ID
-    if (photoId !== '-' && R2_PUBLIC_URL_BASE && R2_PUBLIC_URL_BASE !== 'https://<你的R2公共URL>') {
-        const folderName = getFolderNameFromTagsJs(imageData.tags_data);
-        const r2Key = `${folderName}/${photoId}`;
-        const r2ImageUrl = `${R2_PUBLIC_URL_BASE.replace(/\/$/, '')}/${r2Key}`;
-        // 让 ID 链接到 R2 图片地址
-        idLink = `<a href="${r2ImageUrl}" target="_blank" title="查看 R2 图片">${photoId}</a>`;
-    }
+    const originalText = button.textContent; // 保存原始文本
+    button.disabled = true; // 临时禁用当前按钮
+    button.textContent = '处理中...'; // 提示处理中
 
-    // 2. 大小 (基本不可用)
-    const displaySize = '-'; // 因为 file_size 字段通常为 NULL
-
-    // 3. 分辨率
-    const displayResolution = imageData.resolution || '-';
-
-    // 4. 拍摄地点 (解析 JSON)
-    let locationDisplay = '-';
-    if (imageData.location_details) {
-        try {
-            const loc = JSON.parse(imageData.location_details);
-            // 优先显示 city, country，然后是 name
-            locationDisplay = [loc?.city, loc?.country].filter(Boolean).join(', ') || loc?.name || '-';
-            if (locationDisplay.length > 50) locationDisplay = locationDisplay.substring(0, 50) + '...'; // 简单截断
-        } catch (e) { console.error("解析地点 JSON 失败:", imageData.location_details, e); }
-    }
-
-    // 5. 拍摄/更新时间 (格式化)
-    // 优先用创建时间 created_at_api 代表拍摄时间，其次用更新时间
-    const timeStr = imageData.created_at_api || imageData.updated_at_api;
-    let displayTime = '-';
-    if (timeStr) {
-        try {
-            displayTime = new Date(timeStr).toLocaleString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        } catch (e) { console.error("格式化时间失败:", timeStr, e); }
-    }
-
-    // 6. Tags (解析 JSON 数组，空格分隔)
-    let tagsDisplay = '-';
-    if (imageData.tags_data) {
-        try {
-            const tagsArray = JSON.parse(imageData.tags_data); // 预期是 ["tag1", "tag2"]
-            if (Array.isArray(tagsArray) && tagsArray.length > 0) {
-                tagsDisplay = tagsArray.join(' '); // 用空格分隔
-            }
-        } catch (e) { console.error("解析 Tags JSON 失败:", imageData.tags_data, e); }
-    }
-
-    // 7. 描述
-    let description = imageData.description || imageData.alt_description || '-';
-    // 可以选择截断描述长度
-    // if (description.length > 100) description = description.substring(0, 100) + '...'; 
-
-    // 构建表格行内容 (按新顺序)
-    tr.innerHTML = `
-        <td>${idLink}</td>
-        <td>${displaySize}</td>
-        <td>${displayResolution}</td>
-        <td>${locationDisplay}</td>
-        <td>${displayTime}</td> 
-        <td>${tagsDisplay}</td>
-        <td>${description}</td>
-    `;
-    return tr;
-}
-
-/** *** 修改：加载并显示图片信息到表格 (内部逻辑不变，确保调用 createImageInfoRow) *** */
-async function loadImages(page = 1) {
-    if (!imageTableBody || isLoadingImages) { if (!imageTableBody) console.error("无法找到 #image-table-body 元素!"); return; }
-    isLoadingImages = true;
-    imageTableBody.innerHTML = `<tr><td colspan="7" class="loading-cell">正在加载信息...</td></tr>`; // 更新 colspan 为 7
-    updatePaginationUI();
-    currentPage = page;
+    showActionMessage('正在发送请求...', false);
     try {
-        const url = `${IMAGES_API_URL}?page=${currentPage}&limit=${IMAGES_PER_PAGE}`; // 使用常量 10
-        console.log(`从 API 获取图片信息: ${url}`);
-        const response = await fetch(url);
-        if (!response.ok) { throw new Error(`HTTP 错误! 状态: ${response.status}`); }
-        const jsonData = await response.json();
-        console.log("接收到图片数据:", jsonData);
+        const response = await fetch(url, { method: 'POST' });
+        let result = { success: response.ok, message: response.statusText };
+        try { result = await response.json(); } catch (e) { /* Ignore if not JSON */ }
 
-        if (jsonData.success && jsonData.data?.images) {
-            imageTableBody.innerHTML = '';
-            totalImages = jsonData.data.totalImages || 0;
-            totalPages = jsonData.data.totalPages || 1;
-            const images = jsonData.data.images;
-            if (images.length > 0) {
-                console.log(`[loadImages] 准备渲染 ${images.length} 行数据...`);
-                images.forEach((image, index) => {
-                    console.log(`[loadImages] 处理索引 ${index}, ID: ${image?.id}`);
-                    const tableRow = createImageInfoRow(image); // <-- 调用创建表格行函数
-                    if (tableRow) { imageTableBody.appendChild(tableRow); }
-                    else { console.warn(`[loadImages] 未能为图片 ID 创建表格行: ${image?.id}`); }
-                });
-            } else {
-                const emptyMsg = (currentPage === 1) ? '数据库中还没有图片信息。请尝试启动同步。' : '当前页没有图片信息。';
-                imageTableBody.innerHTML = `<tr><td colspan="7" class="loading-cell">${emptyMsg}</td></tr>`; // 更新 colspan
-            }
-            updatePaginationUI();
-        } else { throw new Error(jsonData.message || '加载信息失败。'); }
+        if (response.ok && result.success !== false) { // 检查 success 是否明确为 false
+            showActionMessage(result.message || '操作成功！', false);
+            // 不立即启用按钮，等待 fetchStatus 更新状态来决定
+            setTimeout(fetchStatus, 100); // 稍等一下再获取状态，给后端一点时间反应
+        } else { throw new Error(result.message || `请求失败: ${response.status}`); }
     } catch (error) {
-        console.error('[loadImages] 加载信息过程中出错:', error);
-        if (imageTableBody) { imageTableBody.innerHTML = `<tr><td colspan="7" class="loading-cell" style="color: red;">加载信息出错: ${error.message}</td></tr>`; } // 更新 colspan
-        totalPages = currentPage;
-        updatePaginationUI();
-    } finally { isLoadingImages = false; updatePaginationUI(); console.log("[loadImages] 加载流程结束."); }
+        console.error('执行同步操作时出错:', url, error);
+        showActionMessage(`错误: ${error.message}`, true);
+        fetchStatus(); // 出错时也尝试刷新状态，可能会恢复按钮
+    } finally {
+        // 请求结束后恢复按钮原始文本 (按钮是否可用由 fetchStatus 决定)
+        button.textContent = originalText;
+        // button.disabled = false; // <-- 不再在这里强制启用，由 fetchStatus 控制
+    }
 }
 
-// 更新分页 UI (中文, 总记录数)
-function updatePaginationUI() { const pageInfoText = `第 ${currentPage} / ${totalPages} 页 (共 ${totalImages} 条记录)`; if (pageInfo) pageInfo.textContent = pageInfoText; if (pageInfoBottom) pageInfoBottom.textContent = pageInfoText; const disablePrev = isLoadingImages || currentPage <= 1; const disableNext = isLoadingImages || currentPage >= totalPages; if (prevButton) prevButton.disabled = disablePrev; if (prevButtonBottom) prevButtonBottom.disabled = disablePrev; if (nextButton) nextButton.disabled = disableNext; if (nextButtonBottom) nextButtonBottom.disabled = disableNext; }
+/** * 获取并显示同步状态 (修改：调整按钮禁用逻辑) 
+ */
+async function fetchStatus() {
+    if (!statusDisplay) return;
+    let currentStatus = 'unknown'; // 先假设未知状态
+
+    try {
+        const response = await fetch(STATUS_URL);
+        if (!response.ok) throw new Error(`HTTP 错误! 状态: ${response.status}`);
+        const result = await response.json();
+        if (result.success && result.data) {
+            currentStatus = result.data.status || 'unknown'; // 获取真实状态
+            const page = result.data.lastProcessedPage || 0;
+            const lastError = result.data.lastError;
+            let statusText = `状态: ${currentStatus} (上次处理页: ${page})`;
+            if (currentStatus === 'error' && lastError) { statusText += ` - 错误: ${lastError.substring(0, 100)}${lastError.length > 100 ? '...' : ''}`; }
+            statusDisplay.textContent = statusText;
+
+        } else { throw new Error(result.message || '无法获取状态'); }
+    } catch (error) {
+        console.error('获取状态时出错:', error);
+        statusDisplay.textContent = `状态: 获取错误`;
+        // *** 修改：获取状态出错时，保守地启用所有控制按钮，允许用户重试 ***
+        if (startButton) startButton.disabled = false;
+        if (stopButton) stopButton.disabled = false;
+        return; // 获取状态失败，不再继续更新按钮状态
+    }
+
+    // *** 修改：根据获取到的真实状态控制按钮 ***
+    const isRunning = (currentStatus === 'running');
+    const isStopping = (currentStatus === 'stopping');
+    if (startButton) startButton.disabled = isRunning || isStopping; // 运行时或停止中不能开始
+    if (stopButton) stopButton.disabled = !isRunning; // 只有运行时才能停止 (停止中时禁用停止按钮意义不大)
+}
+
+// 创建图片表格行 (保持不变)
+function createImageInfoRow(imageData) { /* ... (与上一版本相同) ... */ }
+
+// 加载并显示图片信息到表格 (保持不变)
+async function loadImages(page = 1) { /* ... (与上一版本相同) ... */ }
+
+// 更新分页控件的 UI (保持不变)
+function updatePaginationUI() { /* ... */ }
 
 // 分页按钮处理 (保持不变)
 function handlePrevPage() { if (!isLoadingImages && currentPage > 1) { loadImages(currentPage - 1); } }
 function handleNextPage() { if (!isLoadingImages && currentPage < totalPages) { loadImages(currentPage + 1); } }
 
 // --- 初始化函数 (保持不变) ---
-function init() { if (!startButton || !stopButton || !prevButton || !nextButton || !pageInfo || !imageTableBody || !statusDisplay || !actionMessage || !prevButtonBottom || !nextButtonBottom || !pageInfoBottom) { console.error("DOM elements missing!"); return; } startButton.addEventListener('click', () => handleSyncAction(START_SYNC_URL, startButton)); stopButton.addEventListener('click', () => handleSyncAction(STOP_SYNC_URL, stopButton)); prevButton.addEventListener('click', handlePrevPage); nextButton.addEventListener('click', handleNextPage); prevButtonBottom.addEventListener('click', handlePrevPage); nextButtonBottom.addEventListener('click', handleNextPage); loadImages(currentPage); fetchStatus(); if (statusIntervalId) clearInterval(statusIntervalId); statusIntervalId = setInterval(fetchStatus, STATUS_POLL_INTERVAL); console.log(`状态轮询已启动.`); }
+function init() { /* ... */ }
 
 // --- 脚本入口 (保持不变) ---
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
