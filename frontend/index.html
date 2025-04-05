@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>imgN - 图片同步状态与图库</title>
+    <title>imgN 控制面板 & 图库</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>imgN - 图片同步状态与图库</h1>
+    <h1>imgN 控制面板 & 图库</h1>
 
     <div class="controls">
         <button id="startButton">开始同步</button>
@@ -22,30 +22,13 @@
 
     <div class="pagination">
         <button id="prevButton" disabled>&lt; 上一页</button>
-        <span id="pageInfo">第 1 / ? 页 (共 0 张图片)</span> <button id="nextButton" disabled>下一页 &gt;</button>
+        <span id="pageInfo">第 1 / ? 页 (共 0 张图片)</span>
+        <button id="nextButton" disabled>下一页 &gt;</button>
     </div>
 
-    <div class="table-container">
-        <table id="image-table">
-            <thead>
-                <tr>
-                    <th>预览</th>
-                    <th>描述 / Alt</th>
-                    <th>作者</th>
-                    <th>尺寸 (WxH)</th>
-                    <th>点赞数</th>
-                    <th>更新时间 (API)</th>
-                    <th>图片 ID / Slug</th>
-                </tr>
-            </thead>
-            <tbody id="image-table-body">
-                <tr>
-                    <td colspan="7" style="text-align:center; padding: 20px;">正在加载图片...</td>
-                </tr>
-            </tbody>
-        </table>
+    <div id="image-grid">
+        <p>正在加载图片...</p>
     </div>
-
     <div class="pagination" style="margin-top: 20px;">
         <button id="prevButtonBottom" disabled>&lt; 上一页</button>
         <span id="pageInfoBottom">第 1 / ? 页 (共 0 张图片)</span>
