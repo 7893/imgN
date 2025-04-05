@@ -5,7 +5,6 @@ export interface Env {
 	DB: D1Database;
 	IMAGE_BUCKET: R2Bucket;
 	UNSPLASH_ACCESS_KEY: string;   // Secret
-	// API_WORKER_BASE_URL: string; // <-- 移除
 	API_WORKER: Fetcher;       // <--- 添加 Service Binding 类型
 	KV_CACHE?: KVNamespace;    // 可选绑定
 }

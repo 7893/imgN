@@ -1,6 +1,7 @@
 // ~/imgN/api-worker/src/routes.ts
 import { IRequest, StatusError } from 'itty-router';
 import { Env } from './types';
+import { DurableObjectStub, RequestInit } from '@cloudflare/workers-types';
 
 // 辅助函数：获取 DO Stub (单例)
 function getDoStub(env: Env): DurableObjectStub {
@@ -14,14 +15,35 @@ function getDoStub(env: Env): DurableObjectStub {
     }
 }
 
-// 辅助函数：将请求转发给 DO
+// 辅助函数：将请求转发给 DO (使用 RequestInit)
 async function forwardToDo(request: IRequest, env: Env, internalPath: string): Promise<Response> {
     const doStub = getDoStub(env);
-    const doUrl = new URL(request.url); // 使用原始请求 URL 来构造内部 URL
-    doUrl.pathname = internalPath; // 设置 DO 内部要处理的路径
+    const doUrl = new URL(`https://do-internal${internalPath}`);
+
     console.log(`[API Route Handler] 转发 ${request.method} ${request.path} 到 DO 路径 ${internalPath}...`);
-    // 使用原始请求对象转发，它包含了方法、头部、主体等
-    return doStub.fetch(doUrl.toString(), request);
+
+    // 构造 RequestInit
+    const doRequestInit: RequestInit = {
+        method: request.method,
+        headers: request.headers,
+    };
+
+    // 如果有 Body 且是相关方法，克隆并传递
+    if (request.body && ['POST', 'PUT', 'PATCH'].includes(request.method)) {
+        try {
+            if (typeof (request as any).clone === 'function') {
+                doRequestInit.body = (request as any).clone().body;
+            } else {
+                console.warn("Request object doesn't seem to have clone method for body forwarding.");
+                doRequestInit.body = request.body;
+            }
+        } catch (e) {
+            console.error("Error preparing request body for DO:", e);
+            throw new StatusError(400, "Could not process request body for forwarding.");
+        }
+    }
+
+    return doStub.fetch(doUrl.toString(), doRequestInit);
 }
 
 // --- 路由处理函数 ---
